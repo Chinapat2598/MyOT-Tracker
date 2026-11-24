@@ -1,0 +1,1829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Overtime &amp; Allowance Tracker</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Google Fonts: Plus Jakarta Sans & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
+      font-variant-numeric: tabular-nums;
+      background-color: #f1f5f9;
+      color: #0f172a;
+    }
+    h1, h2, h3, .font-display {
+      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type=number] { -moz-appearance: textfield; }
+    .header-bg {
+      background: radial-gradient(circle at top right, #9b2247 0%, #7e1938 52%, #520e23 100%);
+    }
+    .burgundy-card {
+      background: linear-gradient(135deg, #961f43 0%, #7e1938 60%, #63122b 100%);
+    }
+    .burgundy-table-head {
+      background: linear-gradient(90deg, #7e1938 0%, #961f43 100%);
+    }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased">
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-24 opacity-0 transition-all duration-300 pointer-events-none">
+    <div class="bg-slate-900/95 backdrop-blur-md text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-sm font-medium border border-slate-700">
+      <span id="toast-icon" class="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold">✓</span>
+      <span id="toast-msg">Saved</span>
+    </div>
+  </div>
+
+  <!-- Add Year Modal -->
+  <div id="add-year-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-6">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg font-bold text-slate-900">Add New Year</h3>
+        <button onclick="closeModal('add-year-modal')" class="text-slate-400 hover:text-slate-600 p-1">✕</button>
+      </div>
+      <p class="text-xs text-slate-500 mb-4">Creates a 12-month calendar with automatic Saturday &amp; Sunday Day Off status.</p>
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Calendar Year (YYYY)</label>
+        <input id="new-year-input" type="number" min="2000" max="2100" onkeydown="if(event.key==='Enter') confirmAddYear()"
+          class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-[#7e1938] focus:ring-2 focus:ring-rose-200 outline-none font-bold text-slate-900" />
+      </div>
+      <div class="mt-6 flex justify-end gap-2">
+        <button onclick="closeModal('add-year-modal')" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
+        <button onclick="confirmAddYear()" class="px-4 py-2 rounded-xl text-sm font-semibold bg-[#7e1938] hover:bg-[#961f43] text-white shadow-sm">Create Year</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Clear Month Confirmation Modal -->
+  <div id="clear-month-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-6">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-lg font-bold text-slate-900">Clear Month Entries?</h3>
+        <button onclick="closeModal('clear-month-modal')" class="text-slate-400 hover:text-slate-600 p-1">✕</button>
+      </div>
+      <p id="clear-month-desc" class="text-xs text-slate-600 mb-5 leading-relaxed">
+        This will reset all OT hours (1, 1.5, 3), Food (F), Transport (T), and Notes for the selected month to zero. Other months will remain untouched.
+      </p>
+      <div class="flex justify-end gap-2">
+        <button onclick="closeModal('clear-month-modal')" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
+        <button onclick="confirmClearMonth()" class="px-4 py-2 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-500 text-white shadow-sm">Clear Month</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly OT Target Modal -->
+  <div id="target-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-lg font-bold text-slate-900">Monthly OT Target Settings</h3>
+        <button onclick="closeModal('target-modal')" class="text-slate-400 hover:text-slate-600 p-1">✕</button>
+      </div>
+      <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+        Set a default monthly overtime goal (hours) or customize the target specifically for <span id="target-modal-month-name" class="font-bold text-slate-800">November 2026</span>.
+      </p>
+
+      <div class="space-y-4">
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+          <label class="block text-xs font-bold text-slate-700 mb-1">
+            Target for <span id="target-modal-month-label">November 2026</span> (hrs)
+          </label>
+          <input id="month-target-input" type="number" step="0.5" min="0" onkeydown="if(event.key==='Enter') saveTargetSettings()"
+            class="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white focus:border-[#7e1938] focus:ring-2 focus:ring-rose-200 outline-none font-extrabold text-slate-900 tabular-nums" />
+          <p class="text-[11px] text-slate-500 mt-1">Applies to the currently selected month.</p>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-rose-50/60 border border-rose-200/80">
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-xs font-bold text-[#7e1938]">Default Monthly Target (hrs)</label>
+            <label class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#7e1938] cursor-pointer">
+              <input id="apply-all-months-chk" type="checkbox" class="rounded border-rose-300 text-[#7e1938] focus:ring-[#7e1938]" />
+              <span>Apply to all 12 months of <span id="target-modal-year-lbl">2026</span></span>
+            </label>
+          </div>
+          <input id="default-target-input" type="number" step="0.5" min="0" onkeydown="if(event.key==='Enter') saveTargetSettings()"
+            class="w-full px-3.5 py-2 rounded-xl border border-rose-200 bg-white focus:border-[#7e1938] focus:ring-2 focus:ring-rose-200 outline-none font-bold text-slate-900 tabular-nums" />
+          <p class="text-[11px] text-slate-500 mt-1">Used automatically when creating new years.</p>
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end gap-2">
+        <button onclick="closeModal('target-modal')" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
+        <button onclick="saveTargetSettings()" class="px-4 py-2 rounded-xl text-sm font-semibold bg-[#7e1938] hover:bg-[#961f43] text-white shadow-sm">Save Target</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Google Sheets Cloud Sync & Backup Modal -->
+  <div id="gsheet-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2.5">
+          <span class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-extrabold text-sm">GS</span>
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Google Sheets Sync &amp; Backup</h3>
+            <p class="text-xs text-slate-500">Sync all years, monthly targets, and daily OT entries to your private Google Sheet</p>
+          </div>
+        </div>
+        <button onclick="closeModal('gsheet-modal')" class="text-slate-400 hover:text-slate-600 p-1">✕</button>
+      </div>
+
+      <div class="space-y-4 mt-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-bold text-slate-700 mb-1">Google Apps Script Web App URL</label>
+            <input id="gs-url-input" type="url" placeholder="https://script.google.com/macros/s/.../exec"
+              class="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none text-xs font-medium text-slate-900" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Passcode (Secret PIN)</label>
+            <input id="gs-code-input" type="password" placeholder="e.g. 123456"
+              class="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none text-xs font-bold text-slate-900" />
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <div class="flex flex-wrap items-center gap-4">
+            <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input id="gs-remember-chk" type="checkbox" checked class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+              <span>Remember URL &amp; Passcode</span>
+            </label>
+            <label class="inline-flex items-center gap-2 text-xs font-bold text-emerald-800 cursor-pointer">
+              <input id="gs-autosync-chk" type="checkbox" checked onchange="toggleGSAutoSync(this.checked)" class="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500" />
+              <span>Auto-Sync on Edit (2.5s delay)</span>
+            </label>
+          </div>
+          <span id="gs-status-text" class="text-xs font-semibold text-slate-500">Not synced yet</span>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button onclick="saveGSheetConfig()" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white">
+            Save Connection
+          </button>
+          <button onclick="pushToGoogleSheet(false)" class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm">
+            ↑ Push Backup to Google Sheet
+          </button>
+          <button onclick="pullFromGoogleSheet()" class="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white shadow-sm">
+            ↓ Pull / Restore from Google Sheet
+          </button>
+        </div>
+
+        <!-- Collapsible Apps Script Code Helper -->
+        <details class="border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
+          <summary class="px-4 py-2.5 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-100 select-none flex items-center justify-between">
+            <span>Setup Guide &amp; Google Apps Script Code (Click to expand)</span>
+            <span class="text-[11px] text-[#7e1938]">Copy Code</span>
+          </summary>
+          <div class="p-4 border-t border-slate-200 space-y-2.5 text-xs text-slate-600">
+            <ol class="list-decimal list-inside space-y-1 leading-relaxed">
+              <li>Open your target Google Sheet → click <strong>Extensions &gt; Apps Script</strong>.</li>
+              <li>Paste the script below, change <code>'123456'</code> in <code>setPasscode()</code> to your secret PIN, and click <strong>Run &gt; setPasscode</strong> once.</li>
+              <li>Click <strong>Deploy &gt; New deployment &gt; Web app</strong> (Execute as: <em>Me</em>, Who has access: <em>Anyone</em>) and paste the Web App URL above.</li>
+              <li>When synced, it updates a readable <code>OT_Logs</code> sheet plus a <code>_RawBackup</code> sheet for 1-click full restore.</li>
+            </ol>
+            <div class="relative">
+              <button onclick="copyAppsScriptCode()" class="absolute top-2 right-2 px-2.5 py-1 rounded-lg bg-[#7e1938] hover:bg-[#961f43] text-white text-[11px] font-bold shadow">
+                Copy Script
+              </button>
+              <textarea id="apps-script-code" readonly rows="10" class="w-full font-mono text-[11px] bg-slate-900 text-emerald-300 p-3 rounded-xl border border-slate-700 outline-none">function setPasscode() {
+  PropertiesService.getScriptProperties().setProperty('OT_PASSCODE', '123456');
+}
+
+function isAuthorized(code) {
+  const saved = PropertiesService.getScriptProperties().getProperty('OT_PASSCODE');
+  return Boolean(saved) && String(code) === String(saved);
+}
+
+function jsonOut(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    const body = JSON.parse(e.postData.contents || '{}');
+    if (!isAuthorized(body.code)) return jsonOut({ ok: false, error: 'Invalid Passcode' });
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    if (body.action === 'pull') {
+      const rawSheet = ss.getSheetByName('_RawBackup');
+      if (!rawSheet) return jsonOut({ ok: false, error: 'No backup found in this Google Sheet yet' });
+      const rawJson = rawSheet.getRange('A2').getValue();
+      return jsonOut({ ok: true, state: JSON.parse(rawJson) });
+    }
+
+    if (body.action === 'push' && body.state) {
+      let rawSheet = ss.getSheetByName('_RawBackup') || ss.insertSheet('_RawBackup');
+      rawSheet.clear();
+      rawSheet.getRange('A1:B1').setValues([['Last_Synced', 'JSON_State']]);
+      rawSheet.getRange('A2:B2').setValues([[new Date().toISOString(), JSON.stringify(body.state)]]);
+
+      let logSheet = ss.getSheetByName('OT_Logs') || ss.insertSheet('OT_Logs');
+      logSheet.clear();
+      const rows = [['Year', 'Month', 'Day', 'Status', 'Rate_1', 'Rate_1.5', 'Rate_3', 'Total_OT', 'Food_F', 'Transport_T', 'Note']];
+      const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      Object.keys(body.state.years || {}).sort().forEach(yr => {
+        body.state.years[yr].forEach((mDays, mIdx) => {
+          mDays.forEach(d => {
+            const isOff = d.type !== 'work';
+            const r1 = isOff ? 0 : (Number(d.r1) || 0);
+            const r15 = isOff ? 0 : (Number(d.r15) || 0);
+            const r3 = isOff ? 0 : (Number(d.r3) || 0);
+            const f = isOff ? 0 : (Number(d.f) || 0);
+            const t = isOff ? 0 : (Number(d.t) || 0);
+            rows.push([Number(yr), months[mIdx], d.day, isOff ? 'Day Off' : 'Workday', r1, r15, r3, r1 + r15 + r3, f, t, d.note || '']);
+          });
+        });
+      });
+      logSheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+      return jsonOut({ ok: true, syncedAt: new Date().toISOString() });
+    }
+
+    return jsonOut({ ok: false, error: 'Unknown action' });
+  } catch (err) {
+    return jsonOut({ ok: false, error: err.message });
+  }
+}</textarea>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="mt-5 flex justify-end">
+        <button onclick="closeModal('gsheet-modal')" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Burgundy Executive Header -->
+  <header class="header-bg text-white border-b border-[#520e23] shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <!-- Brand & Auto-save Timestamp -->
+        <div class="flex flex-wrap items-center gap-3.5">
+          <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#b8325a] to-[#520e23] border border-rose-300/25 flex items-center justify-center text-white shadow-lg shadow-[#3d0818]/40">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <div class="flex flex-wrap items-center gap-2.5">
+              <h1 class="text-lg sm:text-2xl font-extrabold tracking-tight">OVERTIME &amp; ALLOWANCE TRACKER</h1>
+              <span id="autosave-badge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white/15 text-rose-100 border border-white/25">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
+                <span id="autosave-text">Last saved: --:--:--</span>
+              </span>
+            </div>
+            <p class="text-xs text-rose-100/80 mt-0.5">Daily Overtime Hours (1, 1.5, 3) &amp; Food (F) / Transport (T) Allowance Log</p>
+          </div>
+        </div>
+
+        <!-- Toolbar Controls -->
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Year Selector + Add Year -->
+          <div class="flex items-center bg-[#520e23]/80 border border-rose-300/25 rounded-xl p-1">
+            <span class="text-xs text-rose-100/80 px-2 font-medium">Year:</span>
+            <select id="year-selector" onchange="changeYear(this.value)" class="bg-[#3d0818] text-white text-sm font-bold px-3 py-1.5 rounded-lg outline-none cursor-pointer">
+            </select>
+            <button onclick="openAddYearModal()" title="Add a new calendar year" class="ml-1 px-2.5 py-1.5 rounded-lg bg-[#9b2247] hover:bg-[#b52954] text-white text-xs font-bold border border-rose-300/20 transition-colors">
+              + Add Year
+            </button>
+          </div>
+
+          <!-- Google Sheets Cloud Sync -->
+          <button onclick="openGSheetModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors">
+            <span id="gs-header-dot" class="w-2 h-2 rounded-full bg-emerald-200"></span>
+            <span id="gs-header-label">Google Sheets</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-grow w-full">
+
+    <!-- Section 1: Summary KPI Cards (Selected Month & Annual Totals) -->
+    <section aria-label="Summary KPIs" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Card 1: Total OT Hours -->
+      <div class="burgundy-card text-white rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-rose-100">Total OT Hours</span>
+            <span id="kpi-month-tag" class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/15 text-white">November</span>
+          </div>
+          <div class="flex items-baseline gap-2 mt-2">
+            <span id="kpi-month-ot" class="text-3xl font-extrabold tabular-nums">57.5</span>
+            <span class="text-xs text-rose-100/85 font-medium">hrs (selected month)</span>
+          </div>
+        </div>
+        <div class="mt-3 pt-2.5 border-t border-white/20 flex items-center justify-between text-xs text-rose-100">
+          <span>Annual Total (<span class="kpi-year-lbl">2026</span>):</span>
+          <span id="kpi-year-ot" class="font-extrabold text-white tabular-nums">946.5 hrs</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Monthly OT Target & Surplus/Deficit Status -->
+      <div id="kpi-target-card" class="bg-white rounded-2xl p-5 shadow-sm border-2 border-rose-300 flex flex-col justify-between transition-colors">
+        <div>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-600">Monthly OT Target</span>
+            <button onclick="openTargetModal()" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-[#7e1938] transition-colors" title="Customize monthly or default OT target">
+              <span>⚙ Set Target</span>
+            </button>
+          </div>
+
+          <!-- Target Value & Inline Quick Edit -->
+          <div class="flex items-center justify-between gap-2 mt-2">
+            <div class="flex items-baseline gap-1.5">
+              <input id="inline-month-target" type="number" step="0.5" min="0"
+                onchange="updateSingleMonthTarget(this.value)"
+                onkeydown="if(event.key==='Enter') this.blur()"
+                title="Click to edit target hours for this month"
+                class="w-20 text-2xl font-extrabold text-slate-900 bg-slate-100/80 hover:bg-rose-50 focus:bg-white rounded-lg px-2 py-0.5 border border-slate-200 focus:border-[#7e1938] outline-none tabular-nums" />
+              <span class="text-xs font-semibold text-slate-500">hrs goal</span>
+            </div>
+            <span id="kpi-target-pct" class="text-xs font-extrabold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 tabular-nums">71.9%</span>
+          </div>
+
+          <!-- Progress Bar -->
+          <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden mt-2.5">
+            <div id="kpi-target-bar" class="h-full bg-rose-500 rounded-full transition-all duration-300" style="width: 72%"></div>
+          </div>
+        </div>
+
+        <!-- Red / Green Status & Exact Difference -->
+        <div class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+          <span id="kpi-target-status-badge" class="inline-flex items-center gap-1.5 font-extrabold text-rose-600 tabular-nums">
+            -22.5 hrs remaining to target
+          </span>
+        </div>
+      </div>
+
+      <!-- Card 3: Total Food (F) Days -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-purple-200/90 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-purple-700">Total Food (F)</span>
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-800">ALLOWANCE</span>
+          </div>
+          <div class="flex items-baseline gap-2 mt-2">
+            <span id="kpi-month-f" class="text-3xl font-extrabold text-purple-700 tabular-nums">7</span>
+            <span class="text-xs text-slate-500 font-medium">days (selected month)</span>
+          </div>
+        </div>
+        <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <span>Annual Total (<span class="kpi-year-lbl">2026</span>):</span>
+          <span id="kpi-year-f" class="font-extrabold text-purple-800 tabular-nums">137 days</span>
+        </div>
+      </div>
+
+      <!-- Card 4: Total Transport (T) Days -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-pink-200/90 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-pink-700">Total Transport (T)</span>
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-pink-100 text-pink-800">ALLOWANCE</span>
+          </div>
+          <div class="flex items-baseline gap-2 mt-2">
+            <span id="kpi-month-t" class="text-3xl font-extrabold text-pink-700 tabular-nums">1</span>
+            <span class="text-xs text-slate-500 font-medium">days (selected month)</span>
+          </div>
+        </div>
+        <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <span>Annual Total (<span class="kpi-year-lbl">2026</span>):</span>
+          <span id="kpi-year-t" class="font-extrabold text-pink-800 tabular-nums">71 days</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Analytics Charts (Annual Trend + Flexible Month-to-Month Comparison) -->
+    <section aria-label="Charts" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Chart A: Annual OT & Allowance Trend -->
+      <div class="lg:col-span-6 bg-white rounded-2xl p-5 shadow-sm border border-slate-200/90 flex flex-col">
+        <div class="mb-3 flex items-start justify-between gap-2">
+          <div>
+            <h2 class="text-base font-extrabold text-slate-900">Annual OT &amp; Target Trend (<span class="kpi-year-lbl">2026</span>)</h2>
+            <p class="text-xs text-slate-500">Stacked overtime hours (1, 1.5, 3) vs. monthly OT target line</p>
+          </div>
+          <span id="chart-annual-target-pill" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">
+            Target: 80 hrs
+          </span>
+        </div>
+        <div class="relative h-72 w-full flex-grow">
+          <canvas id="annualTrendChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart B: Flexible Month-to-Month Comparison -->
+      <div class="lg:col-span-6 bg-white rounded-2xl p-5 shadow-sm border border-slate-200/90 flex flex-col">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3">
+          <div>
+            <h2 class="text-base font-extrabold text-slate-900">Month-to-Month Comparison</h2>
+            <p class="text-xs text-slate-500">Compare any two months across Total OT, 1, 1.5, 3, Food (F), and Transport (T)</p>
+          </div>
+
+          <!-- Primary Month vs Comparison Month Selectors -->
+          <div class="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+            <select id="cmp-primary-select" onchange="changeCompareMonths()" class="bg-[#7e1938] text-white text-xs font-bold px-2.5 py-1.5 rounded-lg outline-none cursor-pointer">
+            </select>
+            <span class="text-[11px] font-bold text-slate-500 px-1">vs</span>
+            <select id="cmp-secondary-select" onchange="changeCompareMonths()" class="bg-white text-slate-800 border border-slate-300 text-xs font-bold px-2.5 py-1.5 rounded-lg outline-none cursor-pointer">
+            </select>
+          </div>
+        </div>
+
+        <!-- Delta Badges Summary Strip -->
+        <div id="cmp-delta-strip" class="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mb-3">
+          <!-- Rendered by JS -->
+        </div>
+
+        <div class="relative h-56 w-full flex-grow">
+          <canvas id="monthCompareChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Data Entry Sheet & Annual 12-Month Matrix -->
+    <section aria-label="Overtime Log" class="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden">
+      <!-- Top Bar: View Toggle & Day Status Legend -->
+      <div class="px-5 py-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/70">
+        <!-- View Mode Switcher -->
+        <div class="inline-flex p-1 rounded-xl bg-slate-200/80 self-start">
+          <button id="tab-monthly" onclick="switchView('monthly')" class="px-4 py-2 rounded-lg text-xs sm:text-sm font-bold bg-white text-[#7e1938] shadow-sm transition-all">
+            Monthly Entry
+          </button>
+          <button id="tab-matrix" onclick="switchView('matrix')" class="px-4 py-2 rounded-lg text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-900 transition-all">
+            Annual 12-Month Matrix
+          </button>
+        </div>
+
+        <!-- Day Status Color Legend -->
+        <div class="flex flex-wrap items-center gap-3 text-xs text-slate-600">
+          <span class="font-semibold text-slate-700">Day Status (Click badge to toggle):</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-3.5 h-3.5 rounded border border-slate-300 bg-white"></span> Workday</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-3.5 h-3.5 rounded bg-slate-600"></span> Day Off</span>
+        </div>
+      </div>
+
+      <!-- VIEW 1: MONTHLY ENTRY -->
+      <div id="view-monthly" class="p-4 sm:p-6 space-y-5">
+        <!-- 12 Month Selector Pills -->
+        <div id="month-pills" class="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-12 gap-2">
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- Selected Month Action Bar -->
+        <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2.5">
+            <h2 id="active-month-title" class="text-lg font-extrabold text-slate-900">November 2026</h2>
+            <span id="active-month-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800">OT: 57.5 / 80 hrs (-22.5h)</span>
+            <span id="active-month-ft" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800">Food (F): 7 • Transport (T): 1</span>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <span class="hidden md:inline text-xs text-slate-500">Press <kbd class="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[10px] font-bold">Enter</kbd> to move down a row</span>
+            <button onclick="openClearMonthModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              <span>Clear Month</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Daily Entry Table -->
+        <div class="overflow-x-auto rounded-xl border border-slate-300">
+          <table class="w-full text-sm text-left border-collapse">
+            <thead>
+              <tr class="burgundy-table-head text-white text-xs uppercase tracking-wider">
+                <th class="py-2.5 px-3 text-center w-20 border-r border-white/15">Day</th>
+                <th class="py-2.5 px-3 text-center w-28 border-r border-white/15">Status</th>
+                <th class="py-2.5 px-3 text-center w-24 bg-slate-800 border-r border-slate-700">1</th>
+                <th class="py-2.5 px-3 text-center w-24 bg-slate-800 border-r border-slate-700">1.5</th>
+                <th class="py-2.5 px-3 text-center w-24 bg-slate-800 border-r border-slate-700">3</th>
+                <th class="py-2.5 px-3 text-center w-24 bg-emerald-800 border-r border-emerald-700">OT</th>
+                <th class="py-2.5 px-3 text-center w-28 bg-purple-800 border-r border-purple-700 leading-tight" title="Food Allowance">F<br><span style="font-size:10px;opacity:0.85;font-weight:600;">(FOOD)</span></th>
+                <th class="py-2.5 px-3 text-center w-28 bg-pink-800 border-r border-pink-700 leading-tight" title="Transport Allowance">T<br><span style="font-size:10px;opacity:0.85;font-weight:600;">(TRANSPORT)</span></th>
+                <th class="py-2.5 px-3 text-left min-w-[180px] bg-slate-800">Note</th>
+              </tr>
+            </thead>
+            <tbody id="monthly-tbody" class="divide-y divide-slate-200">
+              <!-- Rendered by JS -->
+            </tbody>
+            <tfoot id="monthly-tfoot" class="bg-slate-100 font-extrabold border-t-2 border-slate-400">
+              <!-- Rendered by JS -->
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- VIEW 2: ANNUAL 12-MONTH MATRIX -->
+      <div id="view-matrix" class="hidden p-4 sm:p-6">
+        <div class="mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <p class="text-xs text-slate-600">Compact horizontal overview of all 12 months. Click any month header to open its Monthly Entry sheet, or click a Day cell to toggle between Workday and Day Off.</p>
+          <span class="text-xs font-semibold text-[#7e1938]">Scroll horizontally to view all 12 months →</span>
+        </div>
+        <div class="overflow-x-auto rounded-xl border border-slate-400 max-h-[75vh]">
+          <table id="matrix-table" class="text-[11px] border-collapse whitespace-nowrap">
+            <!-- Rendered by JS -->
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="bg-white border-t border-slate-200 mt-10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+      <span>Overtime &amp; Allowance Tracker • Auto-saves locally &amp; syncs to Google Sheets</span>
+      <button onclick="resetToOriginal2026()" class="text-slate-500 hover:text-rose-600 underline font-medium transition-colors">Load Original 2026 Spreadsheet Preset</button>
+    </div>
+  </footer>
+
+  <script>
+    const STORAGE_KEY = 'ot_tracker_en_final_v2';
+    const GS_CONFIG_KEY = 'ot_tracker_gsheet_cfg_v1';
+    const DEFAULT_OT_TARGET = 80;
+
+    const MONTH_NAMES = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const DAY_NAMES_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    const DAY_TYPE_META = {
+      work: {
+        label: 'Workday',
+        rowBg: 'bg-white hover:bg-slate-50/90',
+        badge: 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200',
+        matrixDay: 'bg-white text-slate-900'
+      },
+      dayoff: {
+        label: 'Day Off',
+        rowBg: 'bg-slate-700 text-slate-300',
+        badge: 'bg-slate-900 text-slate-200 border-slate-600 hover:bg-slate-800',
+        matrixDay: 'bg-slate-700 text-slate-200'
+      }
+    };
+
+    function normalizeDayType(t) {
+      return t === 'work' ? 'work' : 'dayoff';
+    }
+
+    // Exact 2026 Data extracted from your reference spreadsheet (January through November)
+    const PRESET_2026 = [
+      // 0: January 2026
+      [
+        [1,'dayoff',0,0,0,0,0],[2,'dayoff',0,0,0,0,0],[3,'dayoff',0,0,0,0,0],[4,'dayoff',0,0,0,0,0],
+        [5,'dayoff',0,0,0,0,0],[6,'dayoff',0,0,0,0,0],[7,'dayoff',0,0,0,0,0],[8,'dayoff',0,0,0,0,0],
+        [9,'dayoff',0,0,0,0,0],[10,'dayoff',0,0,0,0,0],[11,'dayoff',0,0,0,0,0],[12,'dayoff',0,0,0,0,0],
+        [13,'dayoff',0,0,0,0,0],[14,'dayoff',0,0,0,0,0],[15,'dayoff',0,0,0,0,0],[16,'dayoff',0,0,0,0,0],
+        [17,'dayoff',0,0,0,0,0],[18,'dayoff',0,0,0,0,0],[19,'work',0,0.5,0,0,0],[20,'work',0,0,0,0,0],
+        [21,'work',0,0,0,0,0],[22,'work',0,1,0,0,0],[23,'work',0,0.5,0,0,0],[24,'dayoff',0,0,0,0,0],
+        [25,'dayoff',0,0,0,0,0],[26,'work',0,0,0,0,0],[27,'work',0,1.5,0,0,0],[28,'work',0,1.5,0,0,0],
+        [29,'work',0,1.5,0,0,0],[30,'work',0,2,0,0,0],[31,'dayoff',0,0,0,0,0]
+      ],
+      // 1: February 2026
+      [
+        [1,'dayoff',0,0,0,0,0],[2,'work',0,1.5,0,0,0],[3,'work',0,1,0,0,0],[4,'work',0,2,0,0,0],
+        [5,'work',0,1,0,0,0],[6,'work',0,2,0,0,0],[7,'dayoff',0,0,0,0,0],[8,'dayoff',0,0,0,0,0],
+        [9,'work',0,1.5,0,0,0],[10,'work',0,0.5,0,0,0],[11,'work',0,2,0,0,0],[12,'work',0,2,0,0,0],
+        [13,'work',0,2,0,0,0],[14,'dayoff',0,0,0,0,0],[15,'dayoff',0,0,0,0,0],[16,'work',0,1,0,0,0],
+        [17,'work',0,1,0,0,0],[18,'work',0,1,0,0,0],[19,'work',0,1,0,0,0],[20,'work',0,0,0,0,0],
+        [21,'dayoff',0,0,0,0,0],[22,'dayoff',0,0,0,0,0],[23,'work',0,1.5,0,0,0],[24,'work',0,2,0,0,0],
+        [25,'work',0,0.5,0,0,0],[26,'work',0,2,0,0,0],[27,'work',0,2.5,0,0,0],[28,'dayoff',0,0,0,0,0]
+      ],
+      // 2: March 2026
+      [
+        [1,'dayoff',0,0,0,0,0],[2,'work',0,1,0,0,0],[3,'dayoff',0,0,0,0,0],[4,'work',0,2.5,0,0,0],
+        [5,'work',0,2,0,0,0],[6,'work',0,1.5,0,0,0],[7,'dayoff',0,0,0,0,0],[8,'dayoff',0,0,0,0,0],
+        [9,'work',0,1.5,0,0,0],[10,'work',0,1,0,0,0],[11,'work',0,1,0,0,0],[12,'work',0,1,0,0,0],
+        [13,'work',0,0.5,0,0,0],[14,'dayoff',0,0,0,0,0],[15,'dayoff',0,0,0,0,0],[16,'work',0,3,0,1,0],
+        [17,'work',0,2,0,0,0],[18,'work',0,1,0,0,0],[19,'work',0,1,0,0,0],[20,'work',0,2.5,0,1,0],
+        [21,'dayoff',0,0,0,0,0],[22,'dayoff',0,0,0,0,0],[23,'work',0,2,0,0,0],[24,'work',0,1.5,0,0,0],
+        [25,'work',0,3,0,1,0],[26,'work',0,3,0,1,0],[27,'work',0,0,0,0,0],[28,'dayoff',0,0,0,0,0],
+        [29,'dayoff',0,0,0,0,0],[30,'work',0,0,0,0,0],[31,'work',0,0,0,0,0]
+      ],
+      // 3: April 2026
+      [
+        [1,'work',0,5,0,1,1],[2,'work',0,5,0,1,1],[3,'work',0,3,0,1,0],[4,'dayoff',0,0,0,0,0],
+        [5,'work',8,0,2,0,0],[6,'work',8,0,3,1,0],[7,'work',0,4,0,1,0],[8,'work',0,5.5,0,1,1],
+        [9,'work',0,6,0,1,1],[10,'work',0,2.5,0,0,0],[11,'dayoff',0,0,0,0,0],[12,'dayoff',0,0,0,0,0],
+        [13,'dayoff',0,0,0,0,0],[14,'dayoff',0,0,0,0,0],[15,'dayoff',0,0,0,0,0],[16,'work',0,3,0,1,0],
+        [17,'work',0,3,0,1,0],[18,'dayoff',0,0,0,0,0],[19,'work',8,0,3,1,0],[20,'work',0,1,0,0,0],
+        [21,'work',0,5,0,1,1],[22,'work',0,3.5,0,1,0],[23,'work',0,2,0,0,0],[24,'work',0,3,0,1,0],
+        [25,'dayoff',0,0,0,0,0],[26,'work',8,0,5,1,1],[27,'work',0,4.5,0,1,0],[28,'work',0,3,0,1,0],
+        [29,'work',0,0.5,0,0,0],[30,'work',0,0.5,0,0,0]
+      ],
+      // 4: May 2026
+      [
+        [1,'dayoff',0,0,0,0,0],[2,'dayoff',0,0,0,0,0],[3,'dayoff',0,0,0,0,0],[4,'work',8,0,3,1,0],
+        [5,'work',0,5,0,1,1],[6,'work',0,5.5,0,1,1],[7,'work',0,5.5,0,1,1],[8,'work',0,3,0,1,0],
+        [9,'dayoff',0,0,0,0,0],[10,'work',8,0,5,1,1],[11,'work',0,5.5,0,1,1],[12,'work',0,5,0,1,1],
+        [13,'work',0,5,0,1,1],[14,'work',0,5,0,1,1],[15,'work',0,2,0,0,0],[16,'dayoff',0,0,0,0,0],
+        [17,'work',8,0,6,1,1],[18,'work',0,5.5,0,1,1],[19,'work',0,5,0,1,1],[20,'work',0,5,0,1,1],
+        [21,'work',0,5,0,1,1],[22,'work',0,2,0,0,0],[23,'dayoff',0,0,0,0,0],[24,'work',8,0,4,1,0],
+        [25,'work',0,5,0,1,1],[26,'work',0,5,0,1,1],[27,'work',0,4,0,1,0],[28,'work',0,5,0,1,1],
+        [29,'work',0,3,0,1,0],[30,'dayoff',0,0,0,0,0],[31,'dayoff',0,0,0,0,0]
+      ],
+      // 5: June 2026
+      [
+        [1,'dayoff',0,0,0,0,0],[2,'work',0,5,0,1,1],[3,'work',8,0,3,1,0],[4,'work',0,5.5,0,1,1],
+        [5,'work',0,3,0,1,0],[6,'dayoff',0,0,0,0,0],[7,'work',8,0,5.5,1,1],[8,'work',0,5,0,1,1],
+        [9,'work',0,5,0,1,1],[10,'work',0,5.5,0,1,1],[11,'work',0,4,0,1,0],[12,'work',0,5,0,1,1],
+        [13,'work',4,0,0,0,0],[14,'dayoff',0,0,0,0,0],[15,'work',0,5,0,1,1],[16,'work',0,5.5,0,1,1],
+        [17,'work',0,5,0,1,1],[18,'work',0,4,0,1,0],[19,'work',0,2,0,0,0],[20,'dayoff',0,0,0,0,0],
+        [21,'work',8,0,3.5,1,0],[22,'work',0,5.5,0,1,1],[23,'work',0,0.5,0,0,0],[24,'work',0,4,0,1,0],
+        [25,'work',0,6,0,1,1],[26,'work',0,2,0,0,0],[27,'work',4,0,0,0,0],[28,'dayoff',0,0,0,0,0],
+        [29,'work',0,5.5,0,1,1],[30,'work',0,4,0,1,0]
+      ],
+      // 6: July 2026
+      [
+        [1,'work',0,5,0,1,1],[2,'work',0,6.5,0,1,1],[3,'work',0,5.5,0,1,1],[4,'work',8,0,1,0,0],
+        [5,'dayoff',0,0,0,0,0],[6,'work',0,5.5,0,1,1],[7,'work',0,6.5,0,1,1],[8,'work',0,5.5,0,1,1],
+        [9,'work',0,6,0,1,1],[10,'work',0,1,0,0,0],[11,'dayoff',0,0,0,0,0],[12,'work',8,0,5,1,1],
+        [13,'work',0,6.5,0,1,1],[14,'work',0,5,0,1,1],[15,'work',0,3,0,1,0],[16,'work',0,5.5,0,1,1],
+        [17,'dayoff',0,0,0,0,0],[18,'dayoff',0,0,0,0,0],[19,'work',8,0,4.5,1,0],[20,'work',0,6,0,1,1],
+        [21,'work',0,5,0,1,1],[22,'work',0,5,0,1,1],[23,'work',0,4,0,1,0],[24,'work',0,3.5,0,1,0],
+        [25,'work',8,0,3,1,0],[26,'work',8,0,3.5,1,0],[27,'work',0,0.5,0,0,0],[28,'dayoff',0,0,0,0,0],
+        [29,'dayoff',0,0,0,0,0],[30,'work',0,6.5,0,1,1],[31,'work',0,0.5,0,0,0]
+      ],
+      // 7: August 2026
+      [
+        [1,'dayoff',0,0,0,0,0],[2,'work',8,0,4,1,0],[3,'work',0,5,0,1,1],[4,'work',0,5,0,1,1],
+        [5,'work',0,3,0,1,0],[6,'work',0,5,0,1,1],[7,'work',0,0.5,0,0,0],[8,'dayoff',0,0,0,0,0],
+        [9,'work',8,0,3,1,0],[10,'work',0,5,0,1,1],[11,'work',0,2,0,0,0],[12,'dayoff',0,0,0,0,0],
+        [13,'work',0,3,0,1,0],[14,'work',0,6.5,0,1,1],[15,'dayoff',0,0,0,0,0],[16,'work',8,0,3,1,0],
+        [17,'work',0,5,0,1,1],[18,'work',0,5,0,1,1],[19,'work',0,5,0,1,1],[20,'work',0,5,0,1,1],
+        [21,'work',0,5,0,1,1],[22,'work',7,0,0,0,0],[23,'dayoff',0,0,0,0,0],[24,'work',0,5,0,1,1],
+        [25,'work',0,5,0,1,1],[26,'work',0,3.5,0,1,0],[27,'work',0,5,0,1,1],[28,'work',0,6,0,1,1],
+        [29,'dayoff',0,0,0,0,0],[30,'work',8,0,6,1,1],[31,'work',0,5,0,1,1]
+      ],
+      // 8: September 2026
+      [
+        [1,'work',0,5,0,1,1],[2,'work',0,5,0,1,1],[3,'work',0,6.5,0,1,1],[4,'work',0,5,0,1,1],
+        [5,'work',8,0,2,0,0],[6,'dayoff',0,0,0,0,0],[7,'work',0,5,0,1,1],[8,'work',0,3,0,1,0],
+        [9,'work',0,5,0,1,1],[10,'work',0,3.5,0,1,0],[11,'work',0,3.5,0,1,0],[12,'dayoff',0,0,0,0,0],
+        [13,'work',8,0,1,0,0],[14,'work',0,5,0,1,1],[15,'work',0,5,0,1,1],[16,'work',0,2,0,0,0],
+        [17,'work',0,2,0,0,0],[18,'work',0,0.5,0,0,0],[19,'dayoff',0,0,0,0,0],[20,'dayoff',0,0,0,0,0],
+        [21,'work',0,3,0,1,0],[22,'work',0,2,0,0,0],[23,'work',0,2,0,0,0],[24,'work',0,3,0,1,0],
+        [25,'work',0,2,0,0,0],[26,'work',6.5,0,0,0,0],[27,'dayoff',0,0,0,0,0],[28,'work',0,3,0,1,0],
+        [29,'work',0,2,0,0,0],[30,'work',0,3,0,1,0]
+      ],
+      // 9: October 2026
+      [
+        [1,'work',0,2.5,0,0,0],[2,'work',0,0,0,0,0],[3,'dayoff',0,0,0,0,0],[4,'work',8,0,0,0,0],
+        [5,'work',0,2,0,0,0],[6,'work',0,2.5,0,0,0],[7,'work',0,3,0,1,0],[8,'work',0,2,0,0,0],
+        [9,'work',0,0.5,0,0,0],[10,'dayoff',0,0,0,0,0],[11,'work',8,0,0,0,0],[12,'work',0,2,0,0,0],
+        [13,'dayoff',0,0,0,0,0],[14,'work',0,4,0,1,0],[15,'work',0,2,0,0,0],[16,'work',0,3.5,0,1,0],
+        [17,'work',6,0,0,0,0],[18,'dayoff',0,0,0,0,0],[19,'work',0,3,0,1,0],[20,'work',0,2.5,0,0,0],
+        [21,'work',0,3,0,1,0],[22,'work',0,2,0,0,0],[23,'dayoff',0,0,0,0,0],[24,'dayoff',0,0,0,0,0],
+        [25,'dayoff',0,0,0,0,0],[26,'work',0,2,0,0,0],[27,'work',0,2,0,0,0],[28,'work',0,1,0,0,0],
+        [29,'work',0,1.5,0,0,0],[30,'work',0,0,0,0,0],[31,'work',6,0,0,0,0]
+      ],
+      // 10: November 2026
+      [
+        [1,'dayoff',0,0,0,0,0],[2,'work',0,0.5,0,0,0],[3,'dayoff',0,0,0,0,0],[4,'work',0,1,0,0,0],
+        [5,'work',0,3,0,1,0],[6,'work',0,0,0,0,0],[7,'dayoff',0,0,0,0,0],[8,'work',8,0,0.5,0,0],
+        [9,'work',0,3,0,1,0],[10,'work',0,2,0,0,0],[11,'work',0,2,0,0,0],[12,'work',0,3,0,1,0],
+        [13,'work',0,0,0,0,0],[14,'dayoff',0,0,0,0,0],[15,'work',8,0,0,0,0],[16,'work',0,3,0,1,0],
+        [17,'work',0,2,0,0,0],[18,'work',0,2,0,0,0],[19,'work',0,3,0,1,0],[20,'work',0,5,0,1,1],
+        [21,'work',8,0,0,0,0],[22,'dayoff',0,0,0,0,0],[23,'work',0,3.5,0,1,0],[24,'work',0,0,0,0,0],
+        [25,'work',0,0,0,0,0],[26,'work',0,0,0,0,0],[27,'work',0,0,0,0,0],[28,'dayoff',0,0,0,0,0],
+        [29,'dayoff',0,0,0,0,0],[30,'work',0,0,0,0,0]
+      ],
+      // 11: December 2026 (Ready for entry)
+      Array.from({ length: 31 }, (_, idx) => {
+        const d = idx + 1;
+        const dow = new Date(2026, 11, d).getDay();
+        const isOff = (dow === 0 || dow === 6);
+        return [d, isOff ? 'dayoff' : 'work', 0, 0, 0, 0, 0];
+      })
+    ];
+
+    let appState = loadState();
+    let annualChart = null;
+    let compareChart = null;
+
+    // Build empty 12-month calendar for any year
+    function createEmptyYear(year) {
+      return Array.from({ length: 12 }, (_, mIdx) => {
+        const daysInMonth = new Date(year, mIdx + 1, 0).getDate();
+        return Array.from({ length: daysInMonth }, (__, dIdx) => {
+          const day = dIdx + 1;
+          const dow = new Date(year, mIdx, day).getDay();
+          return {
+            day,
+            type: (dow === 0 || dow === 6) ? 'dayoff' : 'work',
+            r1: 0,
+            r15: 0,
+            r3: 0,
+            f: 0,
+            t: 0,
+            note: ''
+          };
+        });
+      });
+    }
+
+    function createDefaultTargetsArray(goal = DEFAULT_OT_TARGET) {
+      return Array.from({ length: 12 }, () => Number(goal) || DEFAULT_OT_TARGET);
+    }
+
+    // Build default state from 2026 spreadsheet preset
+    function buildDefaultState() {
+      const yr2026 = PRESET_2026.map(monthRows =>
+        monthRows.map(r => {
+          const isOff = normalizeDayType(r[1]) === 'dayoff';
+          return {
+            day: r[0],
+            type: isOff ? 'dayoff' : 'work',
+            r1: isOff ? 0 : r[2],
+            r15: isOff ? 0 : r[3],
+            r3: isOff ? 0 : r[4],
+            f: isOff ? 0 : r[5],
+            t: isOff ? 0 : r[6],
+            note: ''
+          };
+        })
+      );
+      return {
+        activeYear: 2026,
+        activeMonth: 10, // November
+        compareMonth: 9, // October
+        viewMode: 'monthly',
+        defaultTarget: DEFAULT_OT_TARGET,
+        targets: {
+          '2026': createDefaultTargetsArray(DEFAULT_OT_TARGET)
+        },
+        years: {
+          '2026': yr2026
+        },
+        lastSaved: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      };
+    }
+
+    function ensureStateIntegrity(st) {
+      if (!st || !st.years) return buildDefaultState();
+      if (typeof st.defaultTarget !== 'number' || isNaN(st.defaultTarget)) {
+        st.defaultTarget = DEFAULT_OT_TARGET;
+      }
+      if (!st.targets || typeof st.targets !== 'object') {
+        st.targets = {};
+      }
+      Object.keys(st.years).forEach(yrKey => {
+        if (!Array.isArray(st.targets[yrKey]) || st.targets[yrKey].length !== 12) {
+          st.targets[yrKey] = createDefaultTargetsArray(st.defaultTarget);
+        }
+        st.years[yrKey].forEach(mDays => {
+          mDays.forEach(d => {
+            if (typeof d.note !== 'string') d.note = '';
+            d.type = normalizeDayType(d.type);
+            if (d.type === 'dayoff') {
+              d.r1 = 0;
+              d.r15 = 0;
+              d.r3 = 0;
+              d.f = 0;
+              d.t = 0;
+            }
+          });
+        });
+      });
+      if (typeof st.compareMonth !== 'number') st.compareMonth = 9;
+      return st;
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          return ensureStateIntegrity(JSON.parse(raw));
+        }
+      } catch (e) {
+        console.warn('Failed to load state:', e);
+      }
+      return buildDefaultState();
+    }
+
+    function saveState() {
+      try {
+        appState.lastSaved = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+        updateAutosaveBadge();
+        scheduleAutoSyncToGoogleSheet();
+      } catch (e) {
+        console.warn('Failed to save state:', e);
+      }
+    }
+
+    function updateAutosaveBadge() {
+      const el = document.getElementById('autosave-text');
+      if (el) el.textContent = `Last saved: ${appState.lastSaved || 'Just now'}`;
+    }
+
+    function getMonthTarget(year, monthIdx) {
+      const yrKey = String(year);
+      if (!appState.targets[yrKey]) {
+        appState.targets[yrKey] = createDefaultTargetsArray(appState.defaultTarget);
+      }
+      const val = Number(appState.targets[yrKey][monthIdx]);
+      return isNaN(val) ? appState.defaultTarget : val;
+    }
+
+    // Toast feedback
+    function showToast(msg, isWarn = false) {
+      const toast = document.getElementById('toast');
+      const icon = document.getElementById('toast-icon');
+      const text = document.getElementById('toast-msg');
+      text.textContent = msg;
+      icon.className = isWarn
+        ? 'flex items-center justify-center w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold'
+        : 'flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold';
+      icon.textContent = isWarn ? '!' : '✓';
+      toast.classList.remove('translate-y-24', 'opacity-0');
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => {
+        toast.classList.add('translate-y-24', 'opacity-0');
+      }, 2500);
+    }
+
+    function fmtNum(val) {
+      const n = Number(val) || 0;
+      return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, '');
+    }
+
+    function fmtSigned(val, unit = '') {
+      const n = Number(val) || 0;
+      const absStr = fmtNum(Math.abs(n));
+      if (n > 0.001) return `+${absStr}${unit}`;
+      if (n < -0.001) return `-${absStr}${unit}`;
+      return `0${unit}`;
+    }
+
+    function calcMonthStats(daysArr) {
+      let r1 = 0, r15 = 0, r3 = 0, f = 0, t = 0;
+      daysArr.forEach(d => {
+        if (normalizeDayType(d.type) === 'dayoff') return;
+        const v1 = Number(d.r1) || 0;
+        const v15 = Number(d.r15) || 0;
+        const v3 = Number(d.r3) || 0;
+        r1 += v1;
+        r15 += v15;
+        r3 += v3;
+        f += Number(d.f) || 0;
+        t += Number(d.t) || 0;
+      });
+      return { r1, r15, r3, ot: r1 + r15 + r3, f, t };
+    }
+
+    // View & Navigation Controls
+    function switchView(mode) {
+      appState.viewMode = mode;
+      const mView = document.getElementById('view-monthly');
+      const xView = document.getElementById('view-matrix');
+      const mTab = document.getElementById('tab-monthly');
+      const xTab = document.getElementById('tab-matrix');
+
+      if (mode === 'monthly') {
+        mView.classList.remove('hidden');
+        xView.classList.add('hidden');
+        mTab.className = 'px-4 py-2 rounded-lg text-xs sm:text-sm font-bold bg-white text-[#7e1938] shadow-sm transition-all';
+        xTab.className = 'px-4 py-2 rounded-lg text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-900 transition-all';
+      } else {
+        mView.classList.add('hidden');
+        xView.classList.remove('hidden');
+        xTab.className = 'px-4 py-2 rounded-lg text-xs sm:text-sm font-bold bg-white text-[#7e1938] shadow-sm transition-all';
+        mTab.className = 'px-4 py-2 rounded-lg text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-900 transition-all';
+      }
+      saveState();
+    }
+
+    function selectMonth(mIdx) {
+      appState.activeMonth = Number(mIdx);
+      saveState();
+      renderAll();
+    }
+
+    function changeCompareMonths() {
+      const pVal = Number(document.getElementById('cmp-primary-select').value);
+      const sVal = Number(document.getElementById('cmp-secondary-select').value);
+      appState.activeMonth = pVal;
+      appState.compareMonth = sVal;
+      saveState();
+      renderAll();
+    }
+
+    function changeYear(yrStr) {
+      appState.activeYear = Number(yrStr);
+      saveState();
+      renderAll();
+      showToast(`Switched to Year ${yrStr}`);
+    }
+
+    // Modal Helpers
+    function closeModal(id) {
+      const m = document.getElementById(id);
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
+    function openAddYearModal() {
+      const existing = Object.keys(appState.years).map(Number);
+      const nextYr = existing.length ? Math.max(...existing) + 1 : 2027;
+      document.getElementById('new-year-input').value = nextYr;
+      const m = document.getElementById('add-year-modal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+      document.getElementById('new-year-input').focus();
+    }
+
+    function confirmAddYear() {
+      const yr = parseInt(document.getElementById('new-year-input').value, 10);
+      if (!yr || yr < 2000 || yr > 2100) {
+        showToast('Please enter a valid year (2000–2100)', true);
+        return;
+      }
+      if (appState.years[String(yr)]) {
+        showToast(`Year ${yr} already exists`, true);
+        return;
+      }
+      appState.years[String(yr)] = createEmptyYear(yr);
+      appState.targets[String(yr)] = createDefaultTargetsArray(appState.defaultTarget);
+      appState.activeYear = yr;
+      appState.activeMonth = 0;
+      saveState();
+      closeModal('add-year-modal');
+      renderAll();
+      showToast(`Created calendar for Year ${yr}`);
+    }
+
+    function openClearMonthModal() {
+      const mName = MONTH_NAMES[appState.activeMonth];
+      document.getElementById('clear-month-desc').textContent =
+        `This will reset all OT hours (1, 1.5, 3), Food (F), Transport (T), and Notes for ${mName} ${appState.activeYear} to zero. Other months will remain untouched.`;
+      const m = document.getElementById('clear-month-modal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+
+    function confirmClearMonth() {
+      const yrKey = String(appState.activeYear);
+      const mIdx = appState.activeMonth;
+      appState.years[yrKey][mIdx].forEach(d => {
+        d.r1 = 0;
+        d.r15 = 0;
+        d.r3 = 0;
+        d.f = 0;
+        d.t = 0;
+        d.note = '';
+      });
+      saveState();
+      closeModal('clear-month-modal');
+      renderAll();
+      showToast(`Cleared all entries for ${MONTH_NAMES[mIdx]} ${yrKey}`);
+    }
+
+    // Monthly OT Target Controls
+    function updateSingleMonthTarget(rawVal) {
+      const val = Math.max(0, parseFloat(rawVal) || 0);
+      const yrKey = String(appState.activeYear);
+      if (!appState.targets[yrKey]) {
+        appState.targets[yrKey] = createDefaultTargetsArray(appState.defaultTarget);
+      }
+      appState.targets[yrKey][appState.activeMonth] = val;
+      saveState();
+      renderAll();
+      showToast(`Set ${MONTH_NAMES[appState.activeMonth]} OT target to ${fmtNum(val)} hrs`);
+    }
+
+    function openTargetModal() {
+      const yrKey = String(appState.activeYear);
+      const mIdx = appState.activeMonth;
+      const label = `${MONTH_NAMES[mIdx]} ${yrKey}`;
+      document.getElementById('target-modal-month-name').textContent = label;
+      document.getElementById('target-modal-month-label').textContent = label;
+      document.getElementById('target-modal-year-lbl').textContent = yrKey;
+      document.getElementById('month-target-input').value = getMonthTarget(appState.activeYear, mIdx);
+      document.getElementById('default-target-input').value = appState.defaultTarget;
+      document.getElementById('apply-all-months-chk').checked = false;
+
+      const m = document.getElementById('target-modal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+      document.getElementById('month-target-input').focus();
+    }
+
+    function saveTargetSettings() {
+      const yrKey = String(appState.activeYear);
+      const mIdx = appState.activeMonth;
+      const monthGoal = Math.max(0, parseFloat(document.getElementById('month-target-input').value) || 0);
+      const defGoal = Math.max(0, parseFloat(document.getElementById('default-target-input').value) || 0);
+      const applyAll = document.getElementById('apply-all-months-chk').checked;
+
+      appState.defaultTarget = defGoal;
+      if (!appState.targets[yrKey]) {
+        appState.targets[yrKey] = createDefaultTargetsArray(defGoal);
+      }
+
+      if (applyAll) {
+        appState.targets[yrKey] = createDefaultTargetsArray(defGoal);
+      } else {
+        appState.targets[yrKey][mIdx] = monthGoal;
+      }
+
+      saveState();
+      closeModal('target-modal');
+      renderAll();
+      showToast(applyAll
+        ? `Updated all 12 months of ${yrKey} to ${fmtNum(defGoal)} hrs target`
+        : `Updated ${MONTH_NAMES[mIdx]} target to ${fmtNum(monthGoal)} hrs`
+      );
+    }
+
+    // Direct Cell Edits & Day Status Toggling
+    function updateDayField(dayIdx, field, rawVal) {
+      const yrKey = String(appState.activeYear);
+      const dayObj = appState.years[yrKey][appState.activeMonth][dayIdx];
+      if (!dayObj) return;
+
+      if (field === 'note') {
+        dayObj.note = String(rawVal || '');
+      } else {
+        if (normalizeDayType(dayObj.type) === 'dayoff') return;
+        const val = Math.max(0, parseFloat(rawVal) || 0);
+        dayObj[field] = val;
+      }
+      saveState();
+      renderAll();
+    }
+
+    function cycleDayType(mIdx, dayIdx) {
+      const yrKey = String(appState.activeYear);
+      const dayObj = appState.years[yrKey][mIdx][dayIdx];
+      const nextType = normalizeDayType(dayObj.type) === 'work' ? 'dayoff' : 'work';
+      dayObj.type = nextType;
+      if (nextType === 'dayoff') {
+        dayObj.r1 = 0;
+        dayObj.r15 = 0;
+        dayObj.r3 = 0;
+        dayObj.f = 0;
+        dayObj.t = 0;
+      }
+      saveState();
+      renderAll();
+    }
+
+    function handleCellKey(e, dayIdx, field) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.target.blur();
+        const nextInput = document.querySelector(`[data-day="${dayIdx + 1}"][data-field="${field}"]`);
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.select();
+        }
+      }
+    }
+
+    function resetToOriginal2026() {
+      appState = buildDefaultState();
+      saveState();
+      renderAll();
+      showToast('Loaded original 2026 spreadsheet preset');
+    }
+
+    // Google Sheets Sync & Backup Functions
+    let gsAutoSyncTimer = null;
+
+    function getGSConfig() {
+      try {
+        const raw = localStorage.getItem(GS_CONFIG_KEY) || sessionStorage.getItem(GS_CONFIG_KEY);
+        if (!raw) return { url: '', code: '', lastSync: '', autoSync: true };
+        const parsed = JSON.parse(raw);
+        return {
+          url: parsed.url || '',
+          code: parsed.code || '',
+          lastSync: parsed.lastSync || '',
+          autoSync: parsed.autoSync !== undefined ? Boolean(parsed.autoSync) : true
+        };
+      } catch (e) {
+        return { url: '', code: '', lastSync: '', autoSync: true };
+      }
+    }
+
+    function persistGSConfig(cfgObj, remember) {
+      const payload = JSON.stringify(cfgObj);
+      if (remember) {
+        localStorage.setItem(GS_CONFIG_KEY, payload);
+        sessionStorage.removeItem(GS_CONFIG_KEY);
+      } else {
+        sessionStorage.setItem(GS_CONFIG_KEY, payload);
+        localStorage.removeItem(GS_CONFIG_KEY);
+      }
+    }
+
+    function updateGSHeaderIndicator(stateType, text) {
+      const dot = document.getElementById('gs-header-dot');
+      const lbl = document.getElementById('gs-header-label');
+      if (!dot || !lbl) return;
+
+      if (stateType === 'syncing') {
+        dot.className = 'w-2 h-2 rounded-full bg-amber-300 animate-ping';
+        lbl.textContent = text || 'Syncing...';
+      } else if (stateType === 'synced') {
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-200';
+        lbl.textContent = text || 'Sheets Synced ✓';
+      } else if (stateType === 'error') {
+        dot.className = 'w-2 h-2 rounded-full bg-rose-300';
+        lbl.textContent = text || 'Sync Error';
+      } else {
+        const cfg = getGSConfig();
+        dot.className = cfg.url && cfg.code && cfg.autoSync
+          ? 'w-2 h-2 rounded-full bg-emerald-200'
+          : 'w-2 h-2 rounded-full bg-slate-300';
+        lbl.textContent = cfg.url && cfg.code && cfg.autoSync ? 'Auto-Sync ON' : 'Google Sheets';
+      }
+    }
+
+    function scheduleAutoSyncToGoogleSheet() {
+      const cfg = getGSConfig();
+      if (!cfg.url || !cfg.code || !cfg.autoSync) return;
+
+      updateGSHeaderIndicator('syncing', 'Pending Sync...');
+      clearTimeout(gsAutoSyncTimer);
+      gsAutoSyncTimer = setTimeout(() => {
+        pushToGoogleSheet(true);
+      }, 2500);
+    }
+
+    function toggleGSAutoSync(enabled) {
+      const cfg = getGSConfig();
+      const remember = Boolean(localStorage.getItem(GS_CONFIG_KEY));
+      persistGSConfig({ ...cfg, autoSync: enabled }, remember);
+      updateGSHeaderIndicator('idle');
+      showToast(enabled ? 'Google Sheets Auto-Sync enabled' : 'Google Sheets Auto-Sync paused');
+    }
+
+    function openGSheetModal() {
+      const cfg = getGSConfig();
+      document.getElementById('gs-url-input').value = cfg.url || '';
+      document.getElementById('gs-code-input').value = cfg.code || '';
+      document.getElementById('gs-autosync-chk').checked = cfg.autoSync !== false;
+      document.getElementById('gs-status-text').textContent = cfg.lastSync ? `Last synced: ${cfg.lastSync}` : 'Ready to connect';
+      const m = document.getElementById('gsheet-modal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+
+    function saveGSheetConfig() {
+      const url = document.getElementById('gs-url-input').value.trim();
+      const code = document.getElementById('gs-code-input').value;
+      const remember = document.getElementById('gs-remember-chk').checked;
+      const autoSync = document.getElementById('gs-autosync-chk').checked;
+      const prev = getGSConfig();
+
+      persistGSConfig({ url, code, autoSync, lastSync: prev.lastSync || '' }, remember);
+      updateGSHeaderIndicator('idle');
+      document.getElementById('gs-status-text').textContent = 'Connection saved ✓';
+      showToast('Saved Google Sheets connection');
+    }
+
+    async function pushToGoogleSheet(isSilent = false) {
+      if (!isSilent) saveGSheetConfig();
+      const cfg = getGSConfig();
+      const statusEl = document.getElementById('gs-status-text');
+      if (!cfg.url || !cfg.code) {
+        if (!isSilent) {
+          if (statusEl) statusEl.textContent = 'Please enter Web App URL and Passcode';
+          showToast('Enter Web App URL & Passcode first', true);
+        }
+        return;
+      }
+
+      updateGSHeaderIndicator('syncing', 'Syncing...');
+      if (statusEl) statusEl.textContent = 'Syncing backup to Google Sheet...';
+
+      try {
+        const res = await fetch(cfg.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'push', code: cfg.code, state: appState })
+        });
+        const json = await res.json();
+        if (!json.ok) {
+          updateGSHeaderIndicator('error', 'Sync Error');
+          if (statusEl) statusEl.textContent = `Error: ${json.error || 'Sync failed'}`;
+          if (!isSilent) showToast(json.error || 'Failed to sync to Google Sheet', true);
+          return;
+        }
+        const stamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const fullStamp = new Date().toLocaleString();
+        const remember = Boolean(localStorage.getItem(GS_CONFIG_KEY));
+        persistGSConfig({ ...cfg, lastSync: fullStamp }, remember);
+
+        updateGSHeaderIndicator('synced', `Synced ${stamp}`);
+        if (statusEl) statusEl.textContent = `Synced to Google Sheet ✓ (${fullStamp})`;
+        if (!isSilent) showToast('Backed up to Google Sheet successfully');
+      } catch (err) {
+        updateGSHeaderIndicator('error', 'Sync Error');
+        if (statusEl) statusEl.textContent = `Network error: ${err.message}`;
+        if (!isSilent) showToast('Network error pushing to Google Sheet', true);
+      }
+    }
+
+    async function pullFromGoogleSheet() {
+      saveGSheetConfig();
+      const cfg = getGSConfig();
+      const statusEl = document.getElementById('gs-status-text');
+      if (!cfg.url || !cfg.code) {
+        if (statusEl) statusEl.textContent = 'Please enter Web App URL and Passcode';
+        showToast('Enter Web App URL & Passcode first', true);
+        return;
+      }
+
+      updateGSHeaderIndicator('syncing', 'Restoring...');
+      if (statusEl) statusEl.textContent = 'Pulling backup from Google Sheet...';
+      try {
+        const res = await fetch(cfg.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'pull', code: cfg.code })
+        });
+        const json = await res.json();
+        if (!json.ok || !json.state) {
+          updateGSHeaderIndicator('error', 'Sync Error');
+          if (statusEl) statusEl.textContent = `Error: ${json.error || 'Restore failed'}`;
+          showToast(json.error || 'Failed to pull from Google Sheet', true);
+          return;
+        }
+        appState = ensureStateIntegrity(json.state);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+        renderAll();
+        const stamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const fullStamp = new Date().toLocaleString();
+        updateGSHeaderIndicator('synced', `Synced ${stamp}`);
+        if (statusEl) statusEl.textContent = `Restored from Google Sheet ✓ (${fullStamp})`;
+        showToast('Restored data from Google Sheet');
+      } catch (err) {
+        updateGSHeaderIndicator('error', 'Sync Error');
+        if (statusEl) statusEl.textContent = `Network error: ${err.message}`;
+        showToast('Network error pulling from Google Sheet', true);
+      }
+    }
+
+    function copyAppsScriptCode() {
+      const ta = document.getElementById('apps-script-code');
+      ta.select();
+      document.execCommand('copy');
+      showToast('Copied Google Apps Script code to clipboard');
+    }
+
+    // Master Render Function
+    function renderAll() {
+      updateAutosaveBadge();
+
+      // Update Year Selector
+      const yrSel = document.getElementById('year-selector');
+      const yrs = Object.keys(appState.years).sort((a, b) => Number(a) - Number(b));
+      yrSel.innerHTML = yrs.map(y => `<option value="${y}" ${Number(y) === appState.activeYear ? 'selected' : ''}>${y}</option>`).join('');
+
+      document.querySelectorAll('.kpi-year-lbl').forEach(el => { el.textContent = appState.activeYear; });
+
+      const yearData = appState.years[String(appState.activeYear)] || createEmptyYear(appState.activeYear);
+      const monthlyStats = yearData.map(mDays => calcMonthStats(mDays));
+      const activeStats = monthlyStats[appState.activeMonth] || { r1: 0, r15: 0, r3: 0, ot: 0, f: 0, t: 0 };
+      const activeTarget = getMonthTarget(appState.activeYear, appState.activeMonth);
+
+      // Compute Annual Totals
+      const ann = monthlyStats.reduce((acc, s) => {
+        acc.r1 += s.r1;
+        acc.r15 += s.r15;
+        acc.r3 += s.r3;
+        acc.ot += s.ot;
+        acc.f += s.f;
+        acc.t += s.t;
+        return acc;
+      }, { r1: 0, r15: 0, r3: 0, ot: 0, f: 0, t: 0 });
+
+      // Update KPI Cards
+      document.getElementById('kpi-month-tag').textContent = MONTH_NAMES[appState.activeMonth];
+      document.getElementById('kpi-month-ot').textContent = fmtNum(activeStats.ot);
+      document.getElementById('kpi-year-ot').textContent = `${fmtNum(ann.ot)} hrs`;
+
+      // Update Monthly OT Target Card (Red if < target, Green if >= target)
+      const targetDiff = activeStats.ot - activeTarget;
+      const isMet = activeStats.ot >= activeTarget;
+      const pct = activeTarget > 0 ? Math.min(100, Math.round((activeStats.ot / activeTarget) * 100)) : 100;
+
+      const targetCard = document.getElementById('kpi-target-card');
+      const inlineTargetInput = document.getElementById('inline-month-target');
+      const pctBadge = document.getElementById('kpi-target-pct');
+      const progressBar = document.getElementById('kpi-target-bar');
+      const statusBadge = document.getElementById('kpi-target-status-badge');
+
+      inlineTargetInput.value = activeTarget;
+      pctBadge.textContent = `${pct}%`;
+      progressBar.style.width = `${pct}%`;
+
+      if (isMet) {
+        targetCard.className = 'bg-emerald-50/40 rounded-2xl p-5 shadow-sm border-2 border-emerald-400 flex flex-col justify-between transition-colors';
+        pctBadge.className = 'text-xs font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 tabular-nums';
+        progressBar.className = 'h-full bg-emerald-500 rounded-full transition-all duration-300';
+        statusBadge.className = 'inline-flex items-center gap-1.5 font-extrabold text-emerald-700 tabular-nums';
+        statusBadge.innerHTML = targetDiff > 0.001
+          ? `<span>✓</span><span>+${fmtNum(targetDiff)} hrs over target</span>`
+          : `<span>✓</span><span>Target reached (0 hrs diff)</span>`;
+      } else {
+        targetCard.className = 'bg-rose-50/35 rounded-2xl p-5 shadow-sm border-2 border-rose-300 flex flex-col justify-between transition-colors';
+        pctBadge.className = 'text-xs font-extrabold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 tabular-nums';
+        progressBar.className = 'h-full bg-rose-500 rounded-full transition-all duration-300';
+        statusBadge.className = 'inline-flex items-center gap-1.5 font-extrabold text-rose-600 tabular-nums';
+        statusBadge.innerHTML = `<span>•</span><span>-${fmtNum(Math.abs(targetDiff))} hrs remaining to target</span>`;
+      }
+
+      document.getElementById('chart-annual-target-pill').textContent = `Active Target: ${fmtNum(activeTarget)} hrs`;
+
+      document.getElementById('kpi-month-f').textContent = fmtNum(activeStats.f);
+      document.getElementById('kpi-year-f').textContent = `${fmtNum(ann.f)} days`;
+
+      document.getElementById('kpi-month-t').textContent = fmtNum(activeStats.t);
+      document.getElementById('kpi-year-t').textContent = `${fmtNum(ann.t)} days`;
+
+      // Render Month Pills with Red/Green Target Indicator Dot
+      const pillsEl = document.getElementById('month-pills');
+      pillsEl.innerHTML = MONTH_SHORT.map((mName, idx) => {
+        const isActive = idx === appState.activeMonth;
+        const mOt = monthlyStats[idx].ot;
+        const mGoal = getMonthTarget(appState.activeYear, idx);
+        const mMet = mOt >= mGoal;
+        const dotColor = mMet ? 'bg-emerald-500' : 'bg-rose-500';
+
+        return `
+          <button onclick="selectMonth(${idx})"
+            class="p-2 rounded-xl border text-center transition-all relative ${isActive
+              ? 'bg-[#7e1938] text-white border-[#7e1938] shadow-md scale-[1.02]'
+              : 'bg-white hover:bg-rose-50/50 text-slate-700 border-slate-200'}">
+            <div class="flex items-center justify-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full ${isActive && mMet ? 'bg-emerald-300' : (isActive ? 'bg-rose-300' : dotColor)}"></span>
+              <span class="text-[11px] font-bold uppercase">${mName}</span>
+            </div>
+            <div class="text-xs font-extrabold mt-0.5 tabular-nums ${isActive ? 'text-white' : (mMet ? 'text-emerald-700' : 'text-rose-600')}">
+              ${fmtNum(mOt)}h
+            </div>
+          </button>
+        `;
+      }).join('');
+
+      // Active Month Summary Header
+      document.getElementById('active-month-title').textContent = `${MONTH_NAMES[appState.activeMonth]} ${appState.activeYear}`;
+      const mBadgeEl = document.getElementById('active-month-badge');
+      mBadgeEl.className = isMet
+        ? 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800'
+        : 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800';
+      mBadgeEl.textContent = `OT: ${fmtNum(activeStats.ot)} / ${fmtNum(activeTarget)} hrs (${fmtSigned(targetDiff, 'h')})`;
+
+      document.getElementById('active-month-ft').textContent = `Food (F): ${fmtNum(activeStats.f)} • Transport (T): ${fmtNum(activeStats.t)}`;
+
+      // Render Monthly Table Rows
+      renderMonthlyTable(yearData[appState.activeMonth], activeStats, activeTarget);
+
+      // Render Annual 12-Month Matrix
+      renderMatrixTable(yearData);
+
+      // Render Analytics Charts
+      renderAnnualChart(monthlyStats);
+      renderMonthComparison(monthlyStats);
+    }
+
+    function renderMonthlyTable(daysArr, stats, activeTarget) {
+      const tbody = document.getElementById('monthly-tbody');
+      const tfoot = document.getElementById('monthly-tfoot');
+
+      tbody.innerHTML = daysArr.map((d, idx) => {
+        const dow = new Date(appState.activeYear, appState.activeMonth, d.day).getDay();
+        const isWeekend = (dow === 0 || dow === 6);
+        const dowLabel = DAY_NAMES_EN[dow];
+        const dayType = normalizeDayType(d.type);
+        const isDayOff = dayType === 'dayoff';
+        const meta = DAY_TYPE_META[dayType];
+        const rowTotalOt = isDayOff ? 0 : ((Number(d.r1) || 0) + (Number(d.r15) || 0) + (Number(d.r3) || 0));
+
+        const disabledAttr = isDayOff ? 'disabled' : '';
+        const inputStateCls = isDayOff
+          ? 'bg-slate-800/85 text-slate-500 border-slate-600 cursor-not-allowed'
+          : 'bg-white/95 text-slate-900 border-slate-300 hover:border-slate-400 focus:border-[#7e1938] focus:ring-2 focus:ring-rose-200';
+        const fInputStateCls = isDayOff
+          ? 'bg-slate-800/85 text-slate-500 border-slate-600 cursor-not-allowed'
+          : 'bg-purple-50/70 text-slate-900 border-purple-200 hover:border-purple-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-200';
+        const tInputStateCls = isDayOff
+          ? 'bg-slate-800/85 text-slate-500 border-slate-600 cursor-not-allowed'
+          : 'bg-pink-50/70 text-slate-900 border-pink-200 hover:border-pink-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-200';
+        const noteInputStateCls = isDayOff
+          ? 'bg-slate-800/80 text-slate-200 placeholder-slate-400 border-slate-600 focus:border-slate-400 focus:ring-2 focus:ring-slate-500'
+          : 'bg-white/80 text-slate-700 placeholder-slate-400 border-slate-200 hover:border-slate-300 focus:border-[#7e1938] focus:ring-2 focus:ring-rose-100';
+
+        const dayNumColor = isWeekend ? 'text-rose-500' : (isDayOff ? 'text-slate-100' : 'text-slate-800');
+        const dowBadgeCls = isWeekend
+          ? 'text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-500 border border-rose-500/30'
+          : (isDayOff ? 'text-[10px] font-semibold text-slate-400' : 'text-[10px] font-semibold text-slate-400');
+
+        const otCellCls = isDayOff
+          ? 'bg-slate-800/60 text-slate-500 border-slate-600'
+          : 'bg-emerald-50/50 text-slate-800 border-slate-200';
+
+        return `
+          <tr class="${meta.rowBg} transition-colors">
+            <td class="py-1.5 px-3 text-center font-bold border-r ${isDayOff ? 'border-slate-600' : 'border-slate-200'}">
+              <span class="inline-block w-5 ${dayNumColor}">${d.day}</span>
+              <span class="${dowBadgeCls} ml-1">${dowLabel}</span>
+            </td>
+            <td class="py-1.5 px-2 text-center border-r ${isDayOff ? 'border-slate-600' : 'border-slate-200'}">
+              <button onclick="cycleDayType(${appState.activeMonth}, ${idx})"
+                title="Click to toggle between Workday and Day Off"
+                class="w-full py-1 px-2 rounded-lg text-[11px] font-bold border transition-all ${meta.badge}">
+                ${meta.label}
+              </button>
+            </td>
+            <td class="py-1 px-2 border-r ${isDayOff ? 'border-slate-600' : 'border-slate-200'}">
+              <input type="number" step="0.5" min="0" ${disabledAttr} value="${isDayOff ? '' : (d.r1 || '')}" placeholder="${isDayOff ? '—' : '0'}"
+                data-day="${idx}" data-field="r1"
+                onchange="updateDayField(${idx}, 'r1', this.value)" onkeydown="handleCellKey(event, ${idx}, 'r1')"
+                class="w-full text-center font-semibold rounded-lg py-1 border outline-none tabular-nums ${inputStateCls}" />
+            </td>
+            <td class="py-1 px-2 border-r ${isDayOff ? 'border-slate-600' : 'border-slate-200'}">
+              <input type="number" step="0.5" min="0" ${disabledAttr} value="${isDayOff ? '' : (d.r15 || '')}" placeholder="${isDayOff ? '—' : '0'}"
+                data-day="${idx}" data-field="r15"
+                onchange="updateDayField(${idx}, 'r15', this.value)" onkeydown="handleCellKey(event, ${idx}, 'r15')"
+                class="w-full text-center font-semibold rounded-lg py-1 border outline-none tabular-nums ${inputStateCls}" />
+            </td>
+            <td class="py-1 px-2 border-r ${isDayOff ? 'border-slate-600' : 'border-slate-200'}">
+              <input type="number" step="0.5" min="0" ${disabledAttr} value="${isDayOff ? '' : (d.r3 || '')}" placeholder="${isDayOff ? '—' : '0'}"
+                data-day="${idx}" data-field="r3"
+                onchange="updateDayField(${idx}, 'r3', this.value)" onkeydown="handleCellKey(event, ${idx}, 'r3')"
+                class="w-full text-center font-semibold rounded-lg py-1 border outline-none tabular-nums ${inputStateCls}" />
+            </td>
+            <td class="py-1.5 px-3 text-center font-extrabold border-r ${otCellCls} tabular-nums">
+              ${isDayOff ? '—' : (rowTotalOt > 0 ? `<span class="text-emerald-700">${fmtNum(rowTotalOt)}</span>` : '<span class="text-slate-400">0</span>')}
+            </td>
+            <td class="py-1 px-2 border-r ${isDayOff ? 'border-slate-600' : 'border-slate-200'}">
+              <input type="number" step="1" min="0" ${disabledAttr} value="${isDayOff ? '' : (d.f || '')}" placeholder="${isDayOff ? '—' : '0'}"
+                data-day="${idx}" data-field="f"
+                onchange="updateDayField(${idx}, 'f', this.value)" onkeydown="handleCellKey(event, ${idx}, 'f')"
+                class="w-full text-center font-semibold rounded-lg py-1 border outline-none tabular-nums ${fInputStateCls}" />
+            </td>
+            <td class="py-1 px-2 border-r ${isDayOff ? 'border-slate-600' : 'border-slate-200'}">
+              <input type="number" step="1" min="0" ${disabledAttr} value="${isDayOff ? '' : (d.t || '')}" placeholder="${isDayOff ? '—' : '0'}"
+                data-day="${idx}" data-field="t"
+                onchange="updateDayField(${idx}, 't', this.value)" onkeydown="handleCellKey(event, ${idx}, 't')"
+                class="w-full text-center font-semibold rounded-lg py-1 border outline-none tabular-nums ${tInputStateCls}" />
+            </td>
+            <td class="py-1 px-2">
+              <input type="text" value="${(d.note || '').replace(/"/g, '&quot;')}" placeholder="${isDayOff ? 'Day off reason / optional note...' : 'Optional remark...'}"
+                data-day="${idx}" data-field="note"
+                onchange="updateDayField(${idx}, 'note', this.value)" onkeydown="handleCellKey(event, ${idx}, 'note')"
+                class="w-full text-xs font-medium rounded-lg py-1.5 px-2.5 border outline-none ${noteInputStateCls}" />
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      const otFooterBg = stats.ot >= activeTarget
+        ? 'bg-emerald-300 text-emerald-950'
+        : 'bg-rose-200 text-rose-950';
+
+      tfoot.innerHTML = `
+        <tr>
+          <td colspan="2" class="py-3 px-3 text-right text-xs uppercase tracking-wider text-slate-600 border-r border-slate-300">Monthly Total</td>
+          <td class="py-3 px-3 text-center text-slate-900 border-r border-slate-300 tabular-nums">${fmtNum(stats.r1)}</td>
+          <td class="py-3 px-3 text-center text-slate-900 border-r border-slate-300 tabular-nums">${fmtNum(stats.r15)}</td>
+          <td class="py-3 px-3 text-center text-slate-900 border-r border-slate-300 tabular-nums">${fmtNum(stats.r3)}</td>
+          <td class="py-3 px-3 text-center ${otFooterBg} border-r border-slate-300 tabular-nums">${fmtNum(stats.ot)}</td>
+          <td class="py-3 px-3 text-center bg-purple-200 text-purple-950 border-r border-slate-300 tabular-nums">${fmtNum(stats.f)}</td>
+          <td class="py-3 px-3 text-center bg-pink-200 text-pink-950 border-r border-slate-300 tabular-nums">${fmtNum(stats.t)}</td>
+          <td class="py-3 px-3 text-xs font-semibold text-slate-500">Goal: ${fmtNum(activeTarget)} hrs</td>
+        </tr>
+      `;
+    }
+
+    function renderMatrixTable(yearData) {
+      const table = document.getElementById('matrix-table');
+      let headRow1 = '<tr>';
+      let headRow2 = '<tr>';
+
+      for (let m = 0; m < 12; m++) {
+        headRow1 += `
+          <th colspan="7" onclick="selectMonth(${m}); switchView('monthly');"
+            class="py-2 px-2 text-center font-bold bg-[#7e1938] hover:bg-[#961f43] text-white border border-slate-700 cursor-pointer transition-colors">
+            ${MONTH_NAMES[m]}
+          </th>
+        `;
+        headRow2 += `
+          <th class="py-1 px-1.5 bg-slate-800 text-white border border-slate-600">Day</th>
+          <th class="py-1 px-1.5 bg-slate-800 text-white border border-slate-600">1</th>
+          <th class="py-1 px-1.5 bg-slate-800 text-white border border-slate-600">1.5</th>
+          <th class="py-1 px-1.5 bg-slate-800 text-white border border-slate-600">3</th>
+          <th class="py-1 px-1.5 bg-emerald-800 text-white border border-slate-600">OT</th>
+          <th class="py-1 px-1.5 bg-purple-800 text-white border border-slate-600" title="Food">F</th>
+          <th class="py-1 px-1.5 bg-pink-800 text-white border border-slate-600" title="Transport">T</th>
+        `;
+      }
+      headRow1 += '</tr>';
+      headRow2 += '</tr>';
+
+      let bodyHtml = '';
+      for (let d = 1; d <= 31; d++) {
+        bodyHtml += '<tr>';
+        for (let m = 0; m < 12; m++) {
+          const dayObj = yearData[m][d - 1];
+          if (!dayObj) {
+            bodyHtml += `<td colspan="7" class="bg-slate-200 border border-slate-300"></td>`;
+            continue;
+          }
+          const dow = new Date(appState.activeYear, m, d).getDay();
+          const isWeekend = (dow === 0 || dow === 6);
+          const dayType = normalizeDayType(dayObj.type);
+          const isDayOff = dayType === 'dayoff';
+          const meta = DAY_TYPE_META[dayType];
+          const otSum = isDayOff ? 0 : ((Number(dayObj.r1) || 0) + (Number(dayObj.r15) || 0) + (Number(dayObj.r3) || 0));
+          const cellShade = isDayOff ? 'bg-slate-800 text-slate-500' : 'bg-white text-slate-900';
+          const otShade = isDayOff ? 'bg-slate-800 text-slate-500' : 'bg-slate-50 text-slate-900';
+          const fShade = isDayOff ? 'bg-slate-800 text-slate-500' : 'bg-purple-50/60 text-slate-900';
+          const tShade = isDayOff ? 'bg-slate-800 text-slate-500' : 'bg-pink-50/60 text-slate-900';
+          const dayCellColor = isWeekend ? 'text-rose-500 font-extrabold' : '';
+          const noteTitle = dayObj.note ? `Note: ${dayObj.note}` : 'Click to toggle Workday / Day Off';
+
+          bodyHtml += `
+            <td onclick="cycleDayType(${m}, ${d - 1})" title="${noteTitle}"
+              class="py-1 px-1.5 text-center font-bold border border-slate-400 cursor-pointer ${meta.matrixDay} ${dayCellColor}">
+              ${d}${dayObj.note ? '*' : ''}
+            </td>
+            <td class="py-1 px-1.5 text-center border border-slate-300 ${cellShade}">${!isDayOff && dayObj.r1 ? fmtNum(dayObj.r1) : ''}</td>
+            <td class="py-1 px-1.5 text-center border border-slate-300 ${cellShade}">${!isDayOff && dayObj.r15 ? fmtNum(dayObj.r15) : ''}</td>
+            <td class="py-1 px-1.5 text-center border border-slate-300 ${cellShade}">${!isDayOff && dayObj.r3 ? fmtNum(dayObj.r3) : ''}</td>
+            <td class="py-1 px-1.5 text-center font-bold border border-slate-300 ${otShade}">${isDayOff ? '-' : fmtNum(otSum)}</td>
+            <td class="py-1 px-1.5 text-center border border-slate-300 ${fShade}">${isDayOff ? '-' : dayObj.f}</td>
+            <td class="py-1 px-1.5 text-center border border-slate-300 ${tShade}">${isDayOff ? '-' : dayObj.t}</td>
+          `;
+        }
+        bodyHtml += '</tr>';
+      }
+
+      let footHtml = '<tr class="font-extrabold bg-slate-100 border-t-2 border-slate-600">';
+      for (let m = 0; m < 12; m++) {
+        const st = calcMonthStats(yearData[m]);
+        const mGoal = getMonthTarget(appState.activeYear, m);
+        const otBg = st.ot >= mGoal ? 'bg-emerald-300 text-emerald-950' : 'bg-rose-200 text-rose-950';
+        footHtml += `
+          <td class="py-1.5 px-1.5 text-center bg-slate-200 border border-slate-400"></td>
+          <td class="py-1.5 px-1.5 text-center border border-slate-400">${fmtNum(st.r1)}</td>
+          <td class="py-1.5 px-1.5 text-center border border-slate-400">${fmtNum(st.r15)}</td>
+          <td class="py-1.5 px-1.5 text-center border border-slate-400">${fmtNum(st.r3)}</td>
+          <td class="py-1.5 px-1.5 text-center ${otBg} border border-slate-400">${fmtNum(st.ot)}</td>
+          <td class="py-1.5 px-1.5 text-center bg-purple-200 text-purple-950 border border-slate-400">${fmtNum(st.f)}</td>
+          <td class="py-1.5 px-1.5 text-center bg-pink-200 text-pink-950 border border-slate-400">${fmtNum(st.t)}</td>
+        `;
+      }
+      footHtml += '</tr>';
+
+      table.innerHTML = `<thead>${headRow1}${headRow2}</thead><tbody>${bodyHtml}</tbody><tfoot>${footHtml}</tfoot>`;
+    }
+
+    // Chart A: Annual OT & Target Trend
+    function renderAnnualChart(monthlyStats) {
+      const ctx = document.getElementById('annualTrendChart').getContext('2d');
+      const r1Data = monthlyStats.map(s => s.r1);
+      const r15Data = monthlyStats.map(s => s.r15);
+      const r3Data = monthlyStats.map(s => s.r3);
+      const targetData = MONTH_SHORT.map((_, idx) => getMonthTarget(appState.activeYear, idx));
+
+      if (annualChart) {
+        annualChart.data.datasets[0].data = targetData;
+        annualChart.data.datasets[1].data = r1Data;
+        annualChart.data.datasets[2].data = r15Data;
+        annualChart.data.datasets[3].data = r3Data;
+        annualChart.update();
+        return;
+      }
+
+      annualChart = new Chart(ctx, {
+        data: {
+          labels: MONTH_SHORT,
+          datasets: [
+            {
+              type: 'line',
+              label: 'OT Target (hrs)',
+              data: targetData,
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245, 158, 11, 0.12)',
+              borderWidth: 2.5,
+              borderDash: [6, 4],
+              pointRadius: 3.5,
+              pointBackgroundColor: '#f59e0b',
+              tension: 0.2,
+              order: 0
+            },
+            {
+              type: 'bar',
+              label: '1 (hrs)',
+              data: r1Data,
+              backgroundColor: '#6366f1',
+              borderRadius: 4,
+              stack: 'ot',
+              order: 1
+            },
+            {
+              type: 'bar',
+              label: '1.5 (hrs)',
+              data: r15Data,
+              backgroundColor: '#0ea5e9',
+              borderRadius: 4,
+              stack: 'ot',
+              order: 2
+            },
+            {
+              type: 'bar',
+              label: '3 (hrs)',
+              data: r3Data,
+              backgroundColor: '#f43f5e',
+              borderRadius: 4,
+              stack: 'ot',
+              order: 3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { usePointStyle: true, boxWidth: 8, font: { family: 'Inter', size: 11, weight: '600' } }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 23, 42, 0.94)',
+              padding: 12,
+              cornerRadius: 10
+            }
+          },
+          scales: {
+            x: { stacked: true, grid: { display: false }, ticks: { font: { family: 'Inter', size: 11, weight: '600' } } },
+            y: { stacked: true, beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Inter', size: 11 } } }
+          }
+        }
+      });
+    }
+
+    // Chart B: Flexible Month-to-Month Comparison
+    function renderMonthComparison(monthlyStats) {
+      const primaryIdx = appState.activeMonth;
+      const secondaryIdx = appState.compareMonth;
+
+      const priSel = document.getElementById('cmp-primary-select');
+      const secSel = document.getElementById('cmp-secondary-select');
+
+      priSel.innerHTML = MONTH_NAMES.map((name, i) =>
+        `<option value="${i}" ${i === primaryIdx ? 'selected' : ''}>${name}</option>`
+      ).join('');
+      secSel.innerHTML = MONTH_NAMES.map((name, i) =>
+        `<option value="${i}" ${i === secondaryIdx ? 'selected' : ''}>${name}</option>`
+      ).join('');
+
+      const s1 = monthlyStats[primaryIdx];
+      const s2 = monthlyStats[secondaryIdx];
+      const primaryTarget = getMonthTarget(appState.activeYear, primaryIdx);
+
+      // Render Delta Badges Strip
+      const metrics = [
+        { label: 'Total OT', v1: s1.ot, v2: s2.ot, unit: 'h' },
+        { label: '1',        v1: s1.r1, v2: s2.r1, unit: 'h' },
+        { label: '1.5',      v1: s1.r15, v2: s2.r15, unit: 'h' },
+        { label: '3',        v1: s1.r3, v2: s2.r3, unit: 'h' },
+        { label: 'Food (F)', v1: s1.f, v2: s2.f, unit: 'd' },
+        { label: 'Trans (T)',v1: s1.t, v2: s2.t, unit: 'd' }
+      ];
+
+      document.getElementById('cmp-delta-strip').innerHTML = metrics.map(m => {
+        const diff = m.v1 - m.v2;
+        const badgeCls = diff > 0.001
+          ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+          : (diff < -0.001 ? 'text-rose-700 bg-rose-50 border-rose-200' : 'text-slate-600 bg-slate-50 border-slate-200');
+        return `
+          <div class="px-2 py-1.5 rounded-xl border ${badgeCls} text-center">
+            <div class="text-[10px] font-bold uppercase opacity-75">${m.label}</div>
+            <div class="text-xs font-extrabold tabular-nums mt-0.5">${fmtSigned(diff, m.unit)}</div>
+          </div>
+        `;
+      }).join('');
+
+      // Grouped Bar Chart + Target Line
+      const ctx = document.getElementById('monthCompareChart').getContext('2d');
+      const labels = ['Total OT', '1', '1.5', '3', 'Food (F)', 'Transport (T)'];
+      const data1 = [s1.ot, s1.r1, s1.r15, s1.r3, s1.f, s1.t];
+      const data2 = [s2.ot, s2.r1, s2.r15, s2.r3, s2.f, s2.t];
+      const targetLineData = [primaryTarget, null, null, null, null, null];
+
+      if (compareChart) {
+        compareChart.data.datasets[0].label = `${MONTH_SHORT[primaryIdx]} Target (${fmtNum(primaryTarget)}h)`;
+        compareChart.data.datasets[0].data = targetLineData;
+        compareChart.data.datasets[1].label = MONTH_NAMES[primaryIdx];
+        compareChart.data.datasets[1].data = data1;
+        compareChart.data.datasets[2].label = MONTH_NAMES[secondaryIdx];
+        compareChart.data.datasets[2].data = data2;
+        compareChart.update();
+        return;
+      }
+
+      compareChart = new Chart(ctx, {
+        data: {
+          labels,
+          datasets: [
+            {
+              type: 'line',
+              label: `${MONTH_SHORT[primaryIdx]} Target (${fmtNum(primaryTarget)}h)`,
+              data: targetLineData,
+              borderColor: '#f59e0b',
+              backgroundColor: '#f59e0b',
+              pointStyle: 'rectRot',
+              pointRadius: 7,
+              pointHoverRadius: 9,
+              showLine: false,
+              order: 0
+            },
+            {
+              type: 'bar',
+              label: MONTH_NAMES[primaryIdx],
+              data: data1,
+              backgroundColor: '#7e1938',
+              borderRadius: 6,
+              barPercentage: 0.72,
+              categoryPercentage: 0.72,
+              order: 1
+            },
+            {
+              type: 'bar',
+              label: MONTH_NAMES[secondaryIdx],
+              data: data2,
+              backgroundColor: '#94a3b8',
+              borderRadius: 6,
+              barPercentage: 0.72,
+              categoryPercentage: 0.72,
+              order: 2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { usePointStyle: true, boxWidth: 8, font: { family: 'Inter', size: 11, weight: '600' } }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 23, 42, 0.94)',
+              padding: 12,
+              cornerRadius: 10
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 11, weight: '600' } } },
+            y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Inter', size: 11 } } }
+          }
+        }
+      });
+    }
+
+    // Boot application
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        switchView(appState.viewMode || 'monthly');
+        renderAll();
+        updateGSHeaderIndicator('idle');
+      } catch (err) {
+        console.error('Initialization error:', err);
+      }
+    });
+  </script>
+</body>
+</html>
