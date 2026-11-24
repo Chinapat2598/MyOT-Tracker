@@ -520,8 +520,8 @@ function doPost(e) {
                 <th class="py-2.5 px-3 text-center w-24 bg-slate-800 border-r border-slate-700">1.5</th>
                 <th class="py-2.5 px-3 text-center w-24 bg-slate-800 border-r border-slate-700">3</th>
                 <th class="py-2.5 px-3 text-center w-24 bg-emerald-800 border-r border-emerald-700">OT</th>
-                <th class="py-2.5 px-3 text-center w-28 bg-purple-800 border-r border-purple-700 leading-tight" title="Food Allowance">F<br><span style="font-size:10px;opacity:0.85;font-weight:600;">(FOOD)</span></th>
-                <th class="py-2.5 px-3 text-center w-28 bg-pink-800 border-r border-pink-700 leading-tight" title="Transport Allowance">T<br><span style="font-size:10px;opacity:0.85;font-weight:600;">(TRANSPORT)</span></th>
+                <th class="py-2.5 px-3 text-center w-28 bg-purple-800 border-r border-purple-700 leading-tight">F<br><span style="font-size:10px;opacity:0.85;font-weight:600;">(FOOD)</span></th>
+                <th class="py-2.5 px-3 text-center w-28 bg-pink-800 border-r border-pink-700 leading-tight">T<br><span style="font-size:10px;opacity:0.85;font-weight:600;">(TRANSPORT)</span></th>
                 <th class="py-2.5 px-3 text-left min-w-[180px] bg-slate-800">Note</th>
               </tr>
             </thead>
@@ -587,6 +587,18 @@ function doPost(e) {
 
     function normalizeDayType(t) {
       return t === 'work' ? 'work' : 'dayoff';
+    }
+
+    function applyAllowanceRule(dayObj) {
+      if (!dayObj) return;
+      if (normalizeDayType(dayObj.type) === 'dayoff') {
+        dayObj.f = 0;
+        dayObj.t = 0;
+        return;
+      }
+      const eligibleHours = (Number(dayObj.r15) || 0) + (Number(dayObj.r3) || 0);
+      dayObj.f = eligibleHours >= 3 ? 1 : 0;
+      dayObj.t = eligibleHours >= 5 ? 1 : 0;
     }
 
     // Exact 2026 Data extracted from your reference spreadsheet (January through November)
@@ -804,6 +816,8 @@ function doPost(e) {
               d.r3 = 0;
               d.f = 0;
               d.t = 0;
+            } else {
+              applyAllowanceRule(d);
             }
           });
         });
@@ -1071,6 +1085,7 @@ function doPost(e) {
         if (normalizeDayType(dayObj.type) === 'dayoff') return;
         const val = Math.max(0, parseFloat(rawVal) || 0);
         dayObj[field] = val;
+        applyAllowanceRule(dayObj);
       }
       saveState();
       renderAll();
@@ -1431,12 +1446,12 @@ function doPost(e) {
         const inputStateCls = isDayOff
           ? 'bg-slate-800/85 text-slate-500 border-slate-600 cursor-not-allowed'
           : 'bg-white/95 text-slate-900 border-slate-300 hover:border-slate-400 focus:border-[#7e1938] focus:ring-2 focus:ring-rose-200';
-        const fInputStateCls = isDayOff
-          ? 'bg-slate-800/85 text-slate-500 border-slate-600 cursor-not-allowed'
-          : 'bg-purple-50/70 text-slate-900 border-purple-200 hover:border-purple-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-200';
-        const tInputStateCls = isDayOff
-          ? 'bg-slate-800/85 text-slate-500 border-slate-600 cursor-not-allowed'
-          : 'bg-pink-50/70 text-slate-900 border-pink-200 hover:border-pink-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-200';
+        const fCellCls = isDayOff
+          ? 'bg-slate-800/60 text-slate-500 border-slate-600'
+          : 'bg-purple-50/50 text-slate-800 border-slate-200';
+        const tCellCls = isDayOff
+          ? 'bg-slate-800/60 text-slate-500 border-slate-600'
+          : 'bg-pink-50/50 text-slate-800 border-slate-200';
         const noteInputStateCls = isDayOff
           ? 'bg-slate-800/80 text-slate-200 placeholder-slate-400 border-slate-600 focus:border-slate-400 focus:ring-2 focus:ring-slate-500'
           : 'bg-white/80 text-slate-700 placeholder-slate-400 border-slate-200 hover:border-slate-300 focus:border-[#7e1938] focus:ring-2 focus:ring-rose-100';
@@ -1484,17 +1499,11 @@ function doPost(e) {
             <td class="py-1.5 px-3 text-center font-extrabold border-r ${otCellCls} tabular-nums">
               ${isDayOff ? '—' : (rowTotalOt > 0 ? `<span class="text-emerald-700">${fmtNum(rowTotalOt)}</span>` : '<span class="text-slate-400">0</span>')}
             </td>
-            <td class="py-1 px-2 border-r ${isDayOff ? 'border-slate-600' : 'border-slate-200'}">
-              <input type="number" step="1" min="0" ${disabledAttr} value="${isDayOff ? '' : (d.f || '')}" placeholder="${isDayOff ? '—' : '0'}"
-                data-day="${idx}" data-field="f"
-                onchange="updateDayField(${idx}, 'f', this.value)" onkeydown="handleCellKey(event, ${idx}, 'f')"
-                class="w-full text-center font-semibold rounded-lg py-1 border outline-none tabular-nums ${fInputStateCls}" />
+            <td class="py-1.5 px-3 text-center font-extrabold border-r ${fCellCls} tabular-nums">
+              ${isDayOff ? '—' : (d.f > 0 ? `<span class="text-purple-700">${fmtNum(d.f)}</span>` : '<span class="text-slate-400">0</span>')}
             </td>
-            <td class="py-1 px-2 border-r ${isDayOff ? 'border-slate-600' : 'border-slate-200'}">
-              <input type="number" step="1" min="0" ${disabledAttr} value="${isDayOff ? '' : (d.t || '')}" placeholder="${isDayOff ? '—' : '0'}"
-                data-day="${idx}" data-field="t"
-                onchange="updateDayField(${idx}, 't', this.value)" onkeydown="handleCellKey(event, ${idx}, 't')"
-                class="w-full text-center font-semibold rounded-lg py-1 border outline-none tabular-nums ${tInputStateCls}" />
+            <td class="py-1.5 px-3 text-center font-extrabold border-r ${tCellCls} tabular-nums">
+              ${isDayOff ? '—' : (d.t > 0 ? `<span class="text-pink-700">${fmtNum(d.t)}</span>` : '<span class="text-slate-400">0</span>')}
             </td>
             <td class="py-1 px-2">
               <input type="text" value="${(d.note || '').replace(/"/g, '&quot;')}" placeholder="${isDayOff ? 'Day off reason / optional note...' : 'Optional remark...'}"
