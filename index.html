@@ -818,6 +818,56 @@ function doPost(e) {
           st.targets[yrKey] = createDefaultTargetsArray(st.defaultTarget);
         }
         st.years[yrKey].forEach(mDays => {
+          mDays.forEach(d => {
+            d.type = normalizeDayType(d.type);
+            if (d.type === 'dayoff') {
+              d.r1 = 0;
+              d.r15 = 0;
+              d.r3 = 0;
+              d.f = 0;
+              d.t = 0;
+            } else {
+              applyAllowanceRule(d);
+            }
+          });
+        });
+      });
+      if (!st.years[String(st.activeYear)]) {
+        const yrs = Object.keys(st.years).sort();
+        st.activeYear = yrs.length ? Number(yrs[0]) : 2026;
+      }
+      if (typeof st.activeMonth !== 'number' || st.activeMonth < 0 || st.activeMonth > 11) {
+        st.activeMonth = 10;
+      }
+      if (typeof st.compareMonth !== 'number' || st.compareMonth < 0 || st.compareMonth > 11) {
+        st.compareMonth = 9;
+      }
+      return st;
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          return ensureStateIntegrity(JSON.parse(raw));
+        }
+      } catch (e) {
+        console.warn('Failed to load state:', e);
+      }
+      return buildDefaultState();
+    }
+
+    function saveState() {
+      try {
+        appState.lastSaved = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+        updateAutosaveBadge();
+        scheduleAutoSyncToGoogleSheet();
+      } catch (e) {
+        console.warn('Failed to save state:', e);
+      }
+    }
+
     async function pullFromGoogleSheet(isSilent = false) {
       if (!isSilent) saveGSheetConfig();
       const cfg = getGSConfig();
