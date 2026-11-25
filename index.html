@@ -227,15 +227,26 @@ function doPost(e) {
     if (body.action === 'pull') {
       const rawSheet = ss.getSheetByName('_RawBackup');
       if (!rawSheet) return jsonOut({ ok: false, error: 'No backup found in this Google Sheet yet' });
-      const rawJson = rawSheet.getRange('A2').getValue();
+      const lastCol = rawSheet.getLastColumn();
+      const chunks = lastCol >= 2 ? rawSheet.getRange(2, 2, 1, lastCol - 1).getValues()[0] : [];
+      const rawJson = chunks.join('');
+      if (!rawJson) return jsonOut({ ok: false, error: 'Backup cell is empty. Please Push from your other device first.' });
       return jsonOut({ ok: true, state: JSON.parse(rawJson) });
     }
 
     if (body.action === 'push' && body.state) {
       let rawSheet = ss.getSheetByName('_RawBackup') || ss.insertSheet('_RawBackup');
       rawSheet.clear();
-      rawSheet.getRange('A1:B1').setValues([['Last_Synced', 'JSON_State']]);
-      rawSheet.getRange('A2:B2').setValues([[new Date().toISOString(), JSON.stringify(body.state)]]);
+      const fullJson = JSON.stringify(body.state);
+      const chunkSize = 40000;
+      const chunks = [];
+      for (let i = 0; i < fullJson.length; i += chunkSize) {
+        chunks.push(fullJson.slice(i, i + chunkSize));
+      }
+      const headers = ['Last_Synced'].concat(chunks.map((_, idx) => 'Chunk_' + (idx + 1)));
+      const values = [new Date().toISOString()].concat(chunks);
+      rawSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      rawSheet.getRange(2, 1, 1, values.length).setValues([values]);
 
       let logSheet = ss.getSheetByName('OT_Logs') || ss.insertSheet('OT_Logs');
       logSheet.clear();
@@ -807,45 +818,45 @@ function doPost(e) {
           st.targets[yrKey] = createDefaultTargetsArray(st.defaultTarget);
         }
         st.years[yrKey].forEach(mDays => {
-          mDays.forEach(d => {
-            if (typeof d.note !== 'string') d.note = '';
-            d.type = normalizeDayType(d.type);
-            if (d.type === 'dayoff') {
-              d.r1 = 0;
-              d.r15 = 0;
-              d.r3 = 0;
-              d.f = 0;
-              d.t = 0;
-            } else {
-              applyAllowanceRule(d);
-            }
-          });
-        });
-      });
-      if (typeof st.compareMonth !== 'number') st.compareMonth = 9;
-      return st;
-    }
-
-    function loadState() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          return ensureStateIntegrity(JSON.parse(raw));
+    async function pullFromGoogleSheet(isSilent = false) {
+      if (!isSilent) saveGSheetConfig();
+      const cfg = getGSConfig();
+      const statusEl = document.getElementById('gs-status-text');
+      if (!cfg.url || !cfg.code) {
+        if (!isSilent) {
+          if (statusEl) statusEl.textContent = 'Please enter Web App URL and Passcode';
+          showToast('Enter Web App URL & Passcode first', true);
         }
-      } catch (e) {
-        console.warn('Failed to load state:', e);
+        return;
       }
-      return buildDefaultState();
-    }
 
-    function saveState() {
+      updateGSHeaderIndicator('syncing', 'Syncing...');
+      if (statusEl) statusEl.textContent = 'Pulling latest data from Google Sheet...';
       try {
-        appState.lastSaved = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const res = await fetch(cfg.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'pull', code: cfg.code })
+        });
+        const json = await res.json();
+        if (!json.ok || !json.state) {
+          updateGSHeaderIndicator('error', 'Sync Error');
+          if (statusEl) statusEl.textContent = `Error: ${json.error || 'Restore failed'}`;
+          if (!isSilent) showToast(json.error || 'Failed to pull from Google Sheet', true);
+          return;
+        }
+        appState = ensureStateIntegrity(json.state);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
-        updateAutosaveBadge();
-        scheduleAutoSyncToGoogleSheet();
-      } catch (e) {
-        console.warn('Failed to save state:', e);
+        renderAll();
+        const stamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const fullStamp = new Date().toLocaleString();
+        updateGSHeaderIndicator('synced', `Synced ${stamp}`);
+        if (statusEl) statusEl.textContent = `Synced with Google Sheet ✓ (${fullStamp})`;
+        if (!isSilent) showToast('Synced latest data from Google Sheet');
+      } catch (err) {
+        updateGSHeaderIndicator('error', 'Sync Error');
+        if (statusEl) statusEl.textContent = `Network error: ${err.message}`;
+        if (!isSilent) showToast('Network error pulling from Google Sheet', true);
       }
     }
 
@@ -1829,6 +1840,10 @@ function doPost(e) {
         switchView(appState.viewMode || 'monthly');
         renderAll();
         updateGSHeaderIndicator('idle');
+        const cfg = getGSConfig();
+        if (cfg.url && cfg.code && cfg.autoSync) {
+          pullFromGoogleSheet(true);
+        }
       } catch (err) {
         console.error('Initialization error:', err);
       }
